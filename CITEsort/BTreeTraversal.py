@@ -11,7 +11,7 @@ sys.path.append("./CITEsort")
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
-from Visualize import visualize_node,visualize_pair
+from Visualize import visualize_node, visualize_pair, visualize_umap, visualize_2dim
 
    
 '''
@@ -37,11 +37,12 @@ class BTreeTraversal:
         if self.method == 'dfs':
             self.nodelist = self.preorderTraversal()
 
-        self.nodename = [str(x.ind)+'_'+'_'.join(x.key) for x in self.min_BIC_node]
-        self.leafname = [str(x.ind)+'_'+'_'.join(x.key) for x in self.nodelist]
+        if min_BIC_node!=None:
+            self.bicminname = [str(x.ind)+'_'+'_'.join(x.key) for x in self.min_BIC_node]
+        self.nodename = [str(x.ind)+'_'+'_'.join(x.key) for x in self.nodelist]
 
-        print(self.nodename)
-        print(self.leafname)
+        # print(self.bicminname)
+        # print(self.nodename)
         # self.nodename = [str(i)+'_'+nodename_temp[i] for i in range(len(nodename_temp))]
         self.tree_summary, self.leaf_summary = self.summarize()
         if 'll' in self.tree.__dir__():
@@ -55,11 +56,11 @@ class BTreeTraversal:
                                          'Weight':[x.weight for x in self.nodelist],
                                          'Stop':[x.stop for x in self.nodelist],
                                          'll':[x.ll for x in self.nodelist]
-                                         },index=self.leafname)
+                                         },index=self.nodename)
         else:
-            tree_summary = pd.DataFrame({'Count':[len(x.indices) for x in self.nodelist] },index=self.leafname)  
+            tree_summary = pd.DataFrame({'Count':[len(x.indices) for x in self.nodelist] },index=self.nodename)  
 
-        leaf_summary = tree_summary.loc[[x for x in self.leafname if x.split('_')[1]=='leaf'],:]
+        leaf_summary = tree_summary.loc[[x for x in self.nodename if x.split('_')[1]=='leaf'],:]
         # leaf_summary = tree_summary.loc[[i for i in range(len(self.nodename)) if self.nodename[i].split('_')[1]=='leaf'],:]
         leaf_summary = leaf_summary.sort_values(by='Count',ascending=False)
         
@@ -89,20 +90,24 @@ class BTreeTraversal:
     
     
     
-    def get_leaf_label(self, BIC_node=False):
+    def get_leaf_label(self, BIC_node=False, midnodelist=None, midnames=None):
         """generate label (one column, indicating which leaf cells are assigned.)"""
         label = pd.DataFrame({'GEM':self.tree.indices,'Label':[None]*len(self.tree.indices)},index=self.tree.indices)
         
-        if BIC_node:
-            for i in range(len(self.nodename)):
-                label.loc[self.min_BIC_node[i].indices,'Label'] = self.nodename[i]
+        if midnodelist != None:
+            for i in range(len(midnodelist)):
+                label.loc[midnodelist[i].indices,'Label'] = midnames[i]
+            return label['Label']
+        elif BIC_node:
+            for i in range(len(self.bicminname)):
+                label.loc[self.min_BIC_node[i].indices,'Label'] = self.bicminname[i]
         else:
-            for i in range(len(self.leafname)):
-                if self.leafname[i].split('_')[1] == 'leaf':
-                    label.loc[self.nodelist[i].indices,'Label'] = self.leafname[i]
+            for i in range(len(self.nodename)):
+                if self.nodename[i].split('_')[1] == 'leaf':
+                    label.loc[self.nodelist[i].indices,'Label'] = self.nodename[i]
 
         return label
-    
+
 
     
     def plot_node(self,data, nodeID, viz_dim = 1, **plot_para):
@@ -111,8 +116,44 @@ class BTreeTraversal:
             visualize_node(data, node = self.nodelist[nodeID], nodename = self.nodename[nodeID], **plot_para)
         if viz_dim == 2:
             visualize_pair(data, node = self.nodelist[nodeID], nodename = self.nodename[nodeID], **plot_para)
-
     
+
+    def plot_node_umap(self, data, nodeID):
+        node = self.nodelist[nodeID]
+        nodelist = [x for x in self.nodelist if x.ind<=node.ind]
+        nodenames = [str(x.ind)+'_'+'_'.join(x.key) for x in nodelist]
+        label = self.get_leaf_label(midnodelist=nodelist, midnames=nodenames)
+        visualize_umap(data, label=label)
+    
+
+    def plot_node_2dim_old(self, data,  nodeID, marker1, marker2):
+        node = self.nodelist[nodeID]
+        subdata1, subdata2 = data.loc[node.indices, marker1], data.loc[node.indices, marker2]
+        label = pd.DataFrame(index=subdata1.index, columns=['label'])
+        if node.key == 'leaf':
+            label.loc[node.indices, 'label'] = 0
+
+        else:
+            
+            label.loc[node.left.indices, 'label'] = 1
+            label.loc[node.right.indices, 'label'] = 2
+            # print(list(label['label']))
+        visualize_2dim(subdata1, subdata2, label['label'])
+
+
+    def plot_node_2dim_new(self, data, nodeID, marker1, marker2, hist=False, savefig=False):
+        node = self.nodelist[nodeID]
+        # print(node.key)
+        if node.key[0] == 'leaf':
+            subdata1, subdata2 = data.loc[node.indices, marker1], data.loc[node.indices, marker2]
+            label = pd.DataFrame(index=subdata1.index, columns=['label'])
+            label.loc[node.indices, 'label'] = 0
+        else:
+            subdata1, subdata2 = data.loc[node.left.indices+node.right.indices, marker1], data.loc[node.left.indices+node.right.indices, marker2]
+            label = pd.DataFrame(index=subdata1.index, columns=['label'])
+            label.loc[node.left.indices, 'label'] = 1
+            label.loc[node.right.indices, 'label'] = 2
+        visualize_2dim(subdata1, subdata2, label['label'],title='node_'+str(node.ind)+' cell types',hist=hist,savefig=savefig)
     
     def plot_leaf_size(self):
         
@@ -298,9 +339,12 @@ class BTreeTraversal:
             return nodelist
 
 
-    def levelOrderTraversal(self): 
+    def levelOrderTraversal(self, root=None): 
         #print('bfs...')
-        node = self.tree
+        if root != None:
+            node = root
+        else:
+            node = self.tree
         if node is None: 
             return
 

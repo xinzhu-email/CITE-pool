@@ -159,8 +159,35 @@ def visualize_pair(data,node,nodename,**plot_para):
     plt.show() 
     
   
+def visualize_umap(data, label):
+    import umap
+    import umap.plot
+    mapper = umap.UMAP().fit(data)
+    umap.plot.points(mapper, labels=label)
 
 
+def visualize_2dim(dim1, dim2, label, title='Split Cells',hist=False, savefig=False):
+    # print(list(label))
+    # fig, ax = plt.subplots()
+    # n, bins, patches = plt.hist(dim1, bins=100, density=1, alpha=0.5, orientation='vertical')
+    # n, bins, patches = plt.hist(dim2, bins=100, density=1, alpha=0.5, orientation='horizontal') 
+    if hist:  
+        sns.distplot(dim1,kde=True,color='green',vertical=False)
+        sns.distplot(dim2,kde=True,color='green',vertical=True)
+    plt.scatter(dim1, dim2, c=list(label), cmap='tab20b', s=2)
+    plt.xlabel(dim1.name)
+    plt.ylabel(dim2.name)
+    plt.title(title)
+    # legend1 = ax.legend(*scatter.legend_elements(), title="Classes")
+    # a,b=scatter.legend_elements()
+    # b=['$\\mathdefault {left}$',
+    #     '$\\mathdefault{right}$']
+    # legend1 = ax.legend(a,b, title="Classes")
+
+    # plt.title()
+    if savefig:
+        plt.savefig('.png') 
+    plt.show()
 
 
 def plot_keymarker(data,traversal,node_ID,dpi=5,savepath=None):

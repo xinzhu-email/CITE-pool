@@ -51,7 +51,7 @@ def assign_GMM(sample, mean_list, cov_list, weight, if_log=False, marker_list=No
     p_prior = np.zeros(shape=(len(sample),len(weight)))
     for i in range(len(weight)):
         if if_log:
-            print(i)
+            # print(i)
             p_prior[:,i] = multivariate_normal.logpdf(np.array(sample.loc[:,marker_list]), mean=np.array(mean_list[i][marker_list]), cov=np.array(cov_list[i].loc[marker_list,marker_list]),allow_singular=True)
             p_prior[:,i] = p_prior[:,i] + type_num[i]
             
@@ -72,7 +72,7 @@ def assign_GMM(sample, mean_list, cov_list, weight, if_log=False, marker_list=No
     pred_label = pd.Series(data=pred_label,index=index)
     return pred_label
 
-def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0,merge_cutoff=0.1,max_k=10,max_ndim=2,bic='bic'):
+def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0,merge_cutoff=0.1,max_k=10,max_ndim=2,bic='bic',bic_stop=False):
     if leaf_dict == None:
         root=ReSplit(data,merge_cutoff,marker_set=[])
         leaf_dict = {0: root}
@@ -151,39 +151,15 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
             leaf_dict[node.ind] = node
             leaf_list[i] = node
 
-            # if node.stop == None:                
-            #     node = ReSplit(sub_data, merge_cutoff, len(sub_data)/len(data), max_k, max_ndim, bic, marker_set=node.marker)
-            # else:
-            #     node.weight = len(sub_data)/len(data)
-            #     print('node.wight:', node.weight, ', cell num: ', len(sub_data))
-            #     node.mean = sub_data.loc[:,node.marker].mean()
-            #     node.cov = sub_data.loc[:,node.marker].cov()
-                
-            
-            # node.weight = (len(node.child_left)+len(node.child_right))/len(data)
-            # node.child_left = data[new_label==i]
-            # node.child_right = data[new_label==len(leaf_dict)+i]
-            # node.ll = GaussianMixture(1,covariance_type='full').fit(pd.concat([node.child_left,node.child_right],ignore_index=False)).lower_bound_ * node.weight
-            
-            # node.w_l = len(node.child_left)/(len(node.child_left)+len(node.child_right))
-            # node.w_r = 1 - node.w_l
-
-            # gmm_l = GaussianMixture(1,covariance_type='full').fit(node.child_left.loc[:,node.marker])
-            # node.mean_l, node.cov_l = gmm_l.means_, gmm_l.covariances_[0]
-            # ll_l = gmm_l.lower_bound_ * node.w_l
-
-            # gmm_r = GaussianMixture(1,covariance_type='full').fit(node.child_right.loc[:,node.marker])
-            # node.mean_r, node.cov_r = gmm_r.means_, gmm_r.covariances_[0]
-            # ll_r = gmm_r.lower_bound_ * node.w_r
-            
-            # node.score_ll = (ll_l + ll_r)*node.weight - node.ll
-            # # likelihood also update?
         
         n_features = n_features + len(max_root.key)
         bic_score = all_BIC(leaf_dict, n_features)
+        if bic_list!=[] and min(bic_list)-bic_score < 1000:
+            bic_stop = False
         bic_list.append(bic_score)
         
-        node, bic_list, bic_min_node = Choose_leaf(leaf_dict=leaf_dict, data=data, bic_list=bic_list, leaf_list=leaf_list, n_features=n_features)
+        if bic_stop == False:
+            _, bic_list, bic_min_node = Choose_leaf(leaf_dict=leaf_dict, data=data, bic_list=bic_list, leaf_list=leaf_list, n_features=n_features)
         if bic_score <= min(bic_list):
             bic_min_node = leaf_list
     return max_root, bic_list, bic_min_node
@@ -243,8 +219,8 @@ def ReSplit(data=None,merge_cutoff=0.1,weight=1,max_k=10,max_ndim=2,bic='bic',ma
         scores_ll[fidx] = (ll1 + ll0) * root.weight - root.ll
         bic_list[fidx] = bic1 + bic0
     '''
-    #print(separable_features)
-    #print(scores_ll)
+    # print(separable_features)
+    # print('ll:',scores_ll)
     #print(bic_list)
     idx_best = np.argmax(scores_ll)
     if np.max(scores_ll) < 0.001:
@@ -374,12 +350,13 @@ def ScoreFeatures(data,root,merge_cutoff,max_k,ndim,bic,rescan_features=None):
             ll_gain = []#np.zeros(len(labels))
             bic_mlabels = []
             for mlabel in labels:
+                ### 可优化，merge后只有两类时只用算一次，因为算两次都是一样的
                 assignment = merged_label == mlabel
 
                 marker_list = root.marker + list(item) # Choose only marker to calculate loglikelyhood
                 # print('marker_list:',marker_list)
 
-                # print(data.columns)
+                # print('sum(assignment):',sum(assignment),'len(assignment)',len(assignment))
                 gmm1 = GaussianMixture(1,covariance_type='full').fit(data.loc[assignment,marker_list]) # All features used
                 ll1 = gmm1.lower_bound_ * sum(assignment)/len(assignment)
                 bic1 = gmm1.bic(data.loc[assignment,marker_list]) 
@@ -388,9 +365,11 @@ def ScoreFeatures(data,root,merge_cutoff,max_k,ndim,bic,rescan_features=None):
                 ll0 = gmm0.lower_bound_ * sum(~assignment)/len(assignment)
                 bic0 = gmm0.bic(data.loc[~assignment,marker_list]) 
                 
-                ll_gain.append(  (ll1 + ll0) * root.weight - root.ll  )
+                gmm_ = GaussianMixture(1,covariance_type='full').fit(data.loc[:,marker_list])
+                ll_ = gmm_.lower_bound_
+
+                ll_gain.append(  (ll1 + ll0) * root.weight - ll_  )
                 bic_mlabels.append( bic1 + bic0 )
-            
             best_mlabel_idx = np.argmax(ll_gain)
             best_mlabel = labels[best_mlabel_idx]
             
