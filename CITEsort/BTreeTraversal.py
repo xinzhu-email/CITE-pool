@@ -37,6 +37,10 @@ class BTreeTraversal:
         if self.method == 'dfs':
             self.nodelist = self.preorderTraversal()
 
+        templist = list(range(len(self.nodelist)))
+        for node in self.nodelist:
+            templist[node.ind] = node
+        self.nodelist = templist
         if min_BIC_node!=None:
             self.bicminname = [str(x.ind)+'_'+'_'.join(x.key) for x in self.min_BIC_node]
         self.nodename = [str(x.ind)+'_'+'_'.join(x.key) for x in self.nodelist]
@@ -108,7 +112,9 @@ class BTreeTraversal:
 
         return label
 
-
+    def get_ll(self, nodeID):
+        node = self.nodelist[nodeID]
+        return node.score_dict
     
     def plot_node(self,data, nodeID, viz_dim = 1, **plot_para):
         """plot the specified node (default: savefig=False,savepath='.')"""

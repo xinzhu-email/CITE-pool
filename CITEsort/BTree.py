@@ -10,8 +10,8 @@ class BTree:
 
     def __init__(self, key, left = None, right = None, indices = None, stop=None,\
                  all_clustering_dic = None, where_dominant = None, weight=None, ll=None, bic=None,\
-                 score_ll=None, child_right=None, child_left=None, w_l=None, w_r=None, ind=None, marker=None,\
-                 mean=None, cov=None, mean_l=None, mean_r=None, cov_l=None, cov_r=None):
+                 score_ll=None, score_dict=None, child_right=None, child_left=None, w_l=None, w_r=None, ind=None, marker=None,\
+                 separable_feature=None, mean=None, cov=None, mean_l=None, mean_r=None, cov_l=None, cov_r=None, rescan=False):
         self.key = key # a str
         self.right = right # a BstNode
         self.left = left # a BstNode
@@ -25,18 +25,21 @@ class BTree:
         self.where_dominant = where_dominant # str ("left"/"right"), indicator of edge color
         self.stop = stop # legacy
         self.score_ll = score_ll
+        self.score_dict = score_dict
         self.child_right = child_right
         self.child_left = child_left
         self.w_l = w_l
         self.w_r = w_r
         self.ind = ind
         self.marker = marker
+        self.separable_features = separable_feature
         self.mean = mean
         self.cov = cov
         self.mean_l = mean_l
         self.mean_r = mean_r
         self.cov_l = cov_l
         self.cov_r = cov_r
+        self.rescan = rescan
             
     
     def display(self):
