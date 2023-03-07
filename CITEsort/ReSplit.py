@@ -39,7 +39,7 @@ def all_BIC(leaf_dict, n_features):
 
         return bic_score
 
-def assign_GMM(sample, mean_list, cov_list, weight, if_log=False, marker_list=None, confidence_threshold=0):
+def assign_GMM(sample, mean_list, cov_list, weight, if_log=False, marker_list=None, confidence_threshold=0, throw=True):
     """confidence_threshold is used to not assign dots with low confidence to each group:
         a big confidence_threshold represents a more strict standard for confidential dots"""
     confidence_threshold = (1-confidence_threshold) / len(weight) * 2
@@ -54,24 +54,20 @@ def assign_GMM(sample, mean_list, cov_list, weight, if_log=False, marker_list=No
     p_prior = np.zeros(shape=(len(sample),len(weight)))
     for i in range(len(weight)):
         if if_log:
-            print('sample_null',sample.loc[:,marker_list].isnull().any().any(), 'mean_null', mean_list[i][marker_list].isnull().any().any(), 'cov_null', cov_list[i].loc[marker_list,marker_list].isnull().any().any())
+            # print('sample_null',sample.loc[:,marker_list].isnull().any().any(), 'mean_null', mean_list[i][marker_list].isnull().any().any(), 'cov_null', cov_list[i].loc[marker_list,marker_list].isnull().any().any())
             # print('marker len:',marker_list[i].shape[0])
             p_prior[:,i] = multivariate_normal.logpdf(np.array(sample.loc[:,marker_list]), mean=np.array(mean_list[i][marker_list]), cov=np.array(cov_list[i].loc[marker_list,marker_list]),allow_singular=True)
             p_prior[:,i] = p_prior[:,i] + type_num[i]
             
         else:
-            
-            # print([cov_list[i][j,j] for j in range(len(cov_list[i]))])
-            # print(sample.loc[:,marker_list[i]])
-            # print(mean_list[i])
-            # print(cov_list[i])
             p_prior[:,i] = multivariate_normal.pdf(np.array(sample.loc[:,marker_list[i]]), mean=np.array(mean_list[i]), cov=np.array(cov_list[i]))   
             p_prior[:,i] = p_prior[:,i] * type_num[i]
     # p_prior = -p_prior 
     
     p_post = p_prior / (p_prior.sum(axis=1)[:,np.newaxis] )
     pred_label = np.argmin(p_post,axis=1)
-    pred_label = [pred_label[i] if p_post[i,pred_label[i]]<confidence_threshold else -1 for i in range(len(pred_label)) ]
+    if throw:
+        pred_label = [pred_label[i] if p_post[i,pred_label[i]]<confidence_threshold else -1 for i in range(len(pred_label)) ]
     # print(p_post[:10,:])
     # print(pred_label[:10])
     pred_label = pd.Series(data=pred_label,index=index)    
@@ -84,7 +80,7 @@ def update_param(node, alldata, indices, merge_cutoff=0.1,max_k=10,max_ndim=2,bi
         return node
     weight = len(indices)/len(alldata)
     # print('len(indices)',len(indices))
-    if len(indices) < len(list(node.key)) + 1 or len(indices) < 5:
+    if len(indices) < len(list(node.key)) + 1 or len(indices) < 10:
         node.weight = weight 
         node.stop = 'small size'                        
         return node
@@ -99,7 +95,7 @@ def update_param(node, alldata, indices, merge_cutoff=0.1,max_k=10,max_ndim=2,bi
 
     if len(data_l) < 10 or len(data_r) < 10:
         print('#### ReSplit ####')
-        print(data_r.shape[0], data_l.shape[0])
+        print(len(node.left_indices), ':', data_r.shape[0],node.left_indices[:5], len(node.right_indices),':', data_l.shape[0])
         node = ReSplit(data, merge_cutoff, weight, max_k, max_ndim, bic, marker_set=node.marker, root=node)
         return node
     
@@ -115,6 +111,21 @@ def update_param(node, alldata, indices, merge_cutoff=0.1,max_k=10,max_ndim=2,bi
         node.cov_r = data_r.cov()    
    
     return node
+
+
+def smooth(x,item,num):
+    i = [i for i in item][0]
+    value = np.unique(x.loc[:,i].values.tolist())
+    # print(i,value[:5])
+    if len(value)<num+1:
+        return x
+    # print(value[0],value[1])
+    
+    for k in range(num):
+        # print(x.loc[x.loc[:,i]==value[k],i])
+        x.loc[x.loc[:,i]==value[k],i] += np.random.normal(loc=0, scale=1, size=sum(x.loc[:,i]==value[k])) * (value[k+1]-value[k])*0.1
+    
+    return x
 
 
 def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0,merge_cutoff=0.1,max_k=10,max_ndim=2,bic='bic',bic_stop=False):
@@ -151,11 +162,11 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
         else:
             marker_set = list(set(max_root.marker + list(max_root.key)))
 
-        max_root.left = ReSplit(data.iloc[max_root.left_indices,:], merge_cutoff, max_root.weight * max_root.w_l, max_k, max_ndim, bic, marker_set=marker_set)
+        max_root.left = ReSplit(data.loc[max_root.left_indices,:], merge_cutoff, max_root.weight * max_root.w_l, max_k, max_ndim, bic, marker_set=marker_set)
         max_root.left.ind = max(leaf_dict.keys()) + 1
         leaf_dict[max_root.left.ind] = max_root.left
 
-        max_root.right = ReSplit(data.iloc[max_root.right_indices,:], merge_cutoff, max_root.weight * max_root.w_r, max_k, max_ndim, bic, marker_set=marker_set)
+        max_root.right = ReSplit(data.loc[max_root.right_indices,:], merge_cutoff, max_root.weight * max_root.w_r, max_k, max_ndim, bic, marker_set=marker_set)
         max_root.right.ind = max(leaf_dict.keys()) + 1
         leaf_dict[max_root.right.ind] = max_root.right
 
@@ -178,8 +189,8 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
         marker_list = list(set(marker_list))
 
         # print('marker_list:',marker_list)
-        new_label = assign_GMM(data, mean_list, cov_list, w_list, marker_list=marker_list, if_log=True, confidence_threshold=0.8)
-        print(new_label.value_counts())
+        new_label = assign_GMM(data, mean_list, cov_list, w_list, marker_list=marker_list, if_log=True, confidence_threshold=0.5, throw=False)
+        # print(new_label.value_counts())
         
         for i in range(len(leaf_list)):
             node = leaf_list[i]
@@ -214,7 +225,7 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
         cov_list = [node.cov for node in leaf_list]
         w_list = [node.weight for node in leaf_list] 
         marker_list = list(set(marker_list))
-        new_label = assign_GMM(data, mean_list, cov_list, w_list, marker_list=marker_list, if_log=True, confidence_threshold=0)
+        new_label = assign_GMM(data, mean_list, cov_list, w_list, marker_list=marker_list, if_log=True, confidence_threshold=0, throw=False)
         for i in range(len(leaf_list)):
             node = leaf_list[i]
             sub_data = data[new_label==i]
@@ -376,9 +387,21 @@ def ScoreFeatures(data,root,merge_cutoff,max_k,ndim,bic,rescan_features=None):
     bipartitions = {}
     scores = []
     bic_list = []
+    continueness = False
+
+    for item in itertools.combinations(F_set, ndim): 
+        if len(np.unique(data.loc[:,item].values.tolist()))>300:
+            continueness = True
+            break
         
     for item in itertools.combinations(F_set, ndim): # When ndim=1, search one feature each time. When ndim=2, search two features each time.
         x = data.loc[:,item]
+        val = len(np.unique(x.values.tolist()))
+        # print(item)
+        # x = smooth(x,item, max(int(val/30),5))
+        if continueness==False and ndim==1 and val<300 and val>1 and len(x)>10*val:
+            x = smooth(x,item, max(int(val/30),5))
+            data.loc[:,item] = x
         all_clustering[item] = Clustering(x,merge_cutoff,max_k,bic)
     
     for item in all_clustering:
@@ -396,6 +419,7 @@ def ScoreFeatures(data,root,merge_cutoff,max_k,ndim,bic,rescan_features=None):
                 ### 可优化，merge后只有两类时只用算一次，因为算两次都是一样的
                 assignment = merged_label == mlabel
 
+                # marker_list = data.columns
                 marker_list = root.marker + list(item) # Choose only marker to calculate loglikelyhood
                 # print('marker_list:',marker_list)
 
@@ -432,12 +456,18 @@ def Clustering(x,merge_cutoff,max_k,bic):
     
     val,cnt = np.unique(x.values.tolist(),return_counts=True)
     
-    if len(val) < 50:
+    if len(val) < 300:
         clustering = _set_one_component(x) 
-   
-    else:
+        # for i in range(x.shape[1]):
+        #     x.iloc[:,i] += np.random.normal(loc=0, scale=1, size=len(x)) * 0.1
+        # print(x.columns, len(val))
     
+    # if False:
+    #     print('nono')
+    else:
+        # print(x.columns, len(val))
         k_bic,_ = BIC(x,max_k,bic)
+        # print(x.columns,k_bic)
     
         if k_bic == 1:    
             # if only one component, set values
@@ -452,7 +482,7 @@ def Clustering(x,merge_cutoff,max_k,bic):
                 merged_label = clustering['mp_clustering']
                 labels, counts = np.unique(merged_label, return_counts=True)
                 
-                per = counts/np.sum(counts)
+                per = counts/np.sum(counts)                 
                 ents = [stats.entropy([per_i, 1-per_i],base=2) for per_i in per]
                 clustering['max_ent'] = np.max(ents)
                 best_cc_idx = np.argmax(ents)

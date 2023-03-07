@@ -56,7 +56,7 @@ def main():
     
     traversal = BTreeTraversal(tree,save_min_BIC=False, min_BIC_node=min_bic_node)
     leaves_labels = traversal.get_leaf_label()
-    leaves_labels.to_csv(output_path + '/leaf_labels.csv',index=False)
+    leaves_labels.to_csv(output_path + '/leaf_labels.csv')
     leaves_labels = traversal.get_leaf_label(BIC_node=True)
     leaves_labels.to_csv(output_path + '/BIC_stop_labels.csv',index=False)
 
