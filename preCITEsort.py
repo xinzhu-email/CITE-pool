@@ -13,6 +13,7 @@ import numpy as np
 import seaborn as sns
 from matplotlib import pyplot as plt
 import sys
+import diptest
 
 
 parser = argparse.ArgumentParser()
@@ -53,7 +54,8 @@ for i in range(dataplot.shape[1]):
     ax = plt.subplot(int(np.ceil(dataplot.shape[1] / 5)),5,i+1)
     sns.distplot(dataplot.iloc[:,i].values,kde_kws={'bw':0.2})
     plt.yticks([0,1])
-    plt.title(dataplot.columns[i],fontsize=15)
+    dip = diptest.dipstat(dataplot.iloc[:,i])
+    plt.title(dataplot.columns[i]+':'+str(np.round(dip,4)),fontsize=15)
     if i%5 == 0:
         plt.ylabel('Density',fontsize=12)
     ax.spines['right'].set_visible(False)

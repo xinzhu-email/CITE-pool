@@ -22,6 +22,7 @@ import copy
 #from scipy.signal import upfirdn
 #import pandas as pd
 import random
+import diptest
 
 
 
@@ -113,25 +114,38 @@ def update_param(node, alldata, indices, merge_cutoff=0.1,max_k=10,max_ndim=2,bi
     return node
 
 
-def smooth(x,item,num):
-    i = [i for i in item][0]
-    value = np.unique(x.loc[:,i].values.tolist())
+def smooth(x,item=0,num=6):
+    # i = [i for i in item][0]
     # print(i,value[:5])
-    if len(value)<num+1:
-        return x
     # print(value[0],value[1])
-    
-    for k in range(num):
-        # print(x.loc[x.loc[:,i]==value[k],i])
-        x.loc[x.loc[:,i]==value[k],i] += np.random.normal(loc=0, scale=1, size=sum(x.loc[:,i]==value[k])) * (value[k+1]-value[k])*0.1
-    
+    x = x.apply(np.expm1)
+    print('before',(x.isnull()).any())
+    for i in x.columns:
+        value = np.unique(x.loc[:,i].values.tolist())
+        num = min(len(value),num)
+        x.loc[:,i] += np.random.normal(loc=0, scale=1,size=x.shape[0]) * 0.01
+        # for k in range(num-1):
+        #     # print(x.loc[x.loc[:,i]==value[k],i])
+        #     x.loc[x.loc[:,i]==value[k],i] += np.random.normal(loc=0, scale=1, size=sum(x.loc[:,i]==value[k])) * (value[k+1]-value[k])*0.1
+        # print(i,':',len(value))
+    x = x.apply(np.log1p)
+    x.mask(x.isnull(),0)
+    print('after',(x.isnull()).any())
     return x
 
+def value_count(data):
+    val_cnt = pd.Series(index=data.columns)
+    for col in data.columns:
+        val,cnt = np.unique(data[col].values.tolist(),return_counts=True)        
+        val_cnt[col] = len(val)
+    return val_cnt
 
-def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0,merge_cutoff=0.1,max_k=10,max_ndim=2,bic='bic',bic_stop=False):
+def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0,merge_cutoff=0.1,max_k=10,max_ndim=2,bic='bic',bic_stop=False,rawdata=None):
     # leaf_dict only save index of current leaves, leaf_list save the sort of surrent leaves
     if leaf_dict == None:
-        root=ReSplit(data,merge_cutoff,marker_set=[])
+        data = smooth(data)
+        val_cnt = value_count(rawdata)
+        root=ReSplit(data,merge_cutoff,marker_set=[],val_cnt=val_cnt)
         leaf_dict = {0: root}
         root.ind = 0
         leaf_list = [root]
@@ -162,11 +176,13 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
         else:
             marker_set = list(set(max_root.marker + list(max_root.key)))
 
-        max_root.left = ReSplit(data.loc[max_root.left_indices,:], merge_cutoff, max_root.weight * max_root.w_l, max_k, max_ndim, bic, marker_set=marker_set)
+        left_counts = value_count(rawdata.loc[max_root.left_indices,:])
+        max_root.left = ReSplit(data.loc[max_root.left_indices,:], merge_cutoff, max_root.weight * max_root.w_l, max_k, max_ndim, bic, marker_set=marker_set, val_cnt=left_counts)
         max_root.left.ind = max(leaf_dict.keys()) + 1
         leaf_dict[max_root.left.ind] = max_root.left
 
-        max_root.right = ReSplit(data.loc[max_root.right_indices,:], merge_cutoff, max_root.weight * max_root.w_r, max_k, max_ndim, bic, marker_set=marker_set)
+        right_counts = value_count(rawdata.loc[max_root.right_indices,:])
+        max_root.right = ReSplit(data.loc[max_root.right_indices,:], merge_cutoff, max_root.weight * max_root.w_r, max_k, max_ndim, bic, marker_set=marker_set, val_cnt=right_counts)
         max_root.right.ind = max(leaf_dict.keys()) + 1
         leaf_dict[max_root.right.ind] = max_root.right
 
@@ -189,7 +205,7 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
         marker_list = list(set(marker_list))
 
         # print('marker_list:',marker_list)
-        new_label = assign_GMM(data, mean_list, cov_list, w_list, marker_list=marker_list, if_log=True, confidence_threshold=0.5, throw=False)
+        new_label = assign_GMM(rawdata, mean_list, cov_list, w_list, marker_list=marker_list, if_log=True, confidence_threshold=0.5, throw=False)
         # print(new_label.value_counts())
         
         for i in range(len(leaf_list)):
@@ -216,7 +232,7 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
         bic_list.append(bic_score)
         
         if bic_stop == False:
-            _, bic_list, bic_min_node = Choose_leaf(leaf_dict=leaf_dict, data=data, bic_list=bic_list, leaf_list=leaf_list, n_features=n_features)
+            _, bic_list, bic_min_node = Choose_leaf(leaf_dict=leaf_dict, data=data, bic_list=bic_list, leaf_list=leaf_list, n_features=n_features, rawdata=rawdata)
         if bic_score <= min(bic_list):
             bic_min_node = leaf_list
     else:
@@ -225,7 +241,7 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
         cov_list = [node.cov for node in leaf_list]
         w_list = [node.weight for node in leaf_list] 
         marker_list = list(set(marker_list))
-        new_label = assign_GMM(data, mean_list, cov_list, w_list, marker_list=marker_list, if_log=True, confidence_threshold=0, throw=False)
+        new_label = assign_GMM(rawdata, mean_list, cov_list, w_list, marker_list=marker_list, if_log=True, confidence_threshold=0, throw=False)
         for i in range(len(leaf_list)):
             node = leaf_list[i]
             sub_data = data[new_label==i]
@@ -234,10 +250,11 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
     return max_root, bic_list, bic_min_node
 
 
-def ReSplit(data=None,merge_cutoff=0.1,weight=1,max_k=10,max_ndim=2,bic='bic',marker_set=None, root=None):
+def ReSplit(data=None,merge_cutoff=0.1,weight=1,max_k=10,max_ndim=2,bic='bic',marker_set=None, root=None, val_cnt=None):
 
     if root == None:
         root = BTree(('leaf',))
+        root.val_cnt = val_cnt
     root.indices = data.index.values.tolist()
     root.weight = weight
     root.stop = None
@@ -368,14 +385,14 @@ def HiScanFeatures(data,root,merge_cutoff,max_k,max_ndim,bic):
                 break
             
             ### threshold=0.5 or merge_cutoff?
-            separable_features, bipartitions, scores,bic_list, all_clustering_dic[ndim] = ScoreFeatures(data,root,0.5,max_k,ndim,bic,rescan_features)
+            separable_features, bipartitions, scores,bic_list, all_clustering_dic[ndim] = ScoreFeatures(data,root,merge_cutoff,max_k,ndim,bic,rescan_features)
             if len(separable_features) >= 1:
                 break
     return separable_features, bipartitions, scores, bic_list, all_clustering_dic, rescan
     
 
 
-def ScoreFeatures(data,root,merge_cutoff,max_k,ndim,bic,rescan_features=None):
+def ScoreFeatures(data,root,merge_cutoff,max_k,ndim,bic,rescan_features=None,):
     
     if rescan_features != None:
         F_set = rescan_features
@@ -389,20 +406,20 @@ def ScoreFeatures(data,root,merge_cutoff,max_k,ndim,bic,rescan_features=None):
     bic_list = []
     continueness = False
 
-    for item in itertools.combinations(F_set, ndim): 
-        if len(np.unique(data.loc[:,item].values.tolist()))>300:
-            continueness = True
-            break
+    # for item in itertools.combinations(F_set, ndim): 
+    #     if len(np.unique(data.loc[:,item].values.tolist()))>300:
+    #         continueness = True
+    #         break
         
     for item in itertools.combinations(F_set, ndim): # When ndim=1, search one feature each time. When ndim=2, search two features each time.
         x = data.loc[:,item]
-        val = len(np.unique(x.values.tolist()))
+        # val = len(np.unique(x.values.tolist()))
         # print(item)
-        # x = smooth(x,item, max(int(val/30),5))
-        if continueness==False and ndim==1 and val<300 and val>1 and len(x)>10*val:
-            x = smooth(x,item, max(int(val/30),5))
-            data.loc[:,item] = x
-        all_clustering[item] = Clustering(x,merge_cutoff,max_k,bic)
+        # x = smooth(x,item, max(val,6))
+        # if continueness==False and ndim==1 and val<300 and val>1 and len(x)>10*val:
+        #     x = smooth(x,item, min(val,6))
+        # data.loc[:,item] = x
+        all_clustering[item] = Clustering(x,merge_cutoff,max_k,bic,root.val_cnt[list(item)])
     
     for item in all_clustering:
         if all_clustering[item]['mp_ncluster'] > 1:
@@ -452,19 +469,25 @@ def ScoreFeatures(data,root,merge_cutoff,max_k,ndim,bic,rescan_features=None):
 
 
 
-def Clustering(x,merge_cutoff,max_k,bic):
+def Clustering(x,merge_cutoff,max_k,bic,val_cnt):
     
-    val,cnt = np.unique(x.values.tolist(),return_counts=True)
     
-    if len(val) < 300:
-        clustering = _set_one_component(x) 
+    # print(val_cnt, len(val))
+    # print(np.array(x))
+    if x.shape[1]==1 and (val_cnt.values < min(max(x.shape[0]/50,100),x.shape[0]) or diptest.dipstat(np.array(x.iloc[:,0]))<(1-merge_cutoff)*0.01):
+            val,cnt = np.unique(x.values.tolist(),return_counts=True)
+            # print(val_cnt.index, val_cnt.values, len(val))
+            clustering = _set_one_component(x) 
         # for i in range(x.shape[1]):
         #     x.iloc[:,i] += np.random.normal(loc=0, scale=1, size=len(x)) * 0.1
         # print(x.columns, len(val))
-    
-    # if False:
-    #     print('nono')
+ 
     else:
+        # if x.shape[1]==1:
+        #     dip = diptest.dipstat(np.array(x))
+        #     if dip < 0.02:
+        #         clustering = _set_one_component(x) 
+        #         print(x.name)
         # print(x.columns, len(val))
         k_bic,_ = BIC(x,max_k,bic)
         # print(x.columns,k_bic)
@@ -473,7 +496,7 @@ def Clustering(x,merge_cutoff,max_k,bic):
             # if only one component, set values
             clustering = _set_one_component(x)      
         else:
-            
+            print(val_cnt.index, val_cnt.values)
             bp_gmm = GaussianMixture(k_bic).fit(x)
             clustering = merge_bhat(x,bp_gmm,merge_cutoff)
             '''

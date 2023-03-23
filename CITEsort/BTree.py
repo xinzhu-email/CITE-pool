@@ -11,7 +11,7 @@ class BTree:
     def __init__(self, key, left = None, right = None, indices = None, stop=None,\
                  all_clustering_dic = None, where_dominant = None, weight=None, ll=None, bic=None,\
                  score_ll=None, score_dict=None, child_right=None, child_left=None, w_l=None, w_r=None, ind=None, marker=None,\
-                 separable_feature=None, mean=None, cov=None, mean_l=None, mean_r=None, cov_l=None, cov_r=None, rescan=False):
+                 separable_feature=None, mean=None, cov=None, mean_l=None, mean_r=None, cov_l=None, cov_r=None, rescan=False, val_cnt=None):
         self.key = key # a str
         self.right = right # a BstNode
         self.left = left # a BstNode
@@ -40,6 +40,7 @@ class BTree:
         self.cov_l = cov_l
         self.cov_r = cov_r
         self.rescan = rescan
+        self.val_cnt = val_cnt
             
     
     def display(self):
