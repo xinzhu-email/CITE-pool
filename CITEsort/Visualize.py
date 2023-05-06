@@ -299,14 +299,7 @@ def plot_keymarker(data,traversal,node_ID,dpi=5,savepath=None):
         
 
 
-
-
-    
 from subprocess import call
-#from IPython.display import Image
-#import pandas as pd
-#import numpy as np
-
 def visualize_tree(root,data,outpath,filename,compact=False):
     """write tree structure into .dot and .png files."""
     
@@ -468,5 +461,4 @@ def visualize_tree(root,data,outpath,filename,compact=False):
     
     # Display in jupyter notebook
     #Image(filename = outpath+'/GatingTree.png')
-
 

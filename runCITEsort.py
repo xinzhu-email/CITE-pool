@@ -57,14 +57,14 @@ def main():
     traversal = BTreeTraversal(tree,save_min_BIC=False, min_BIC_node=min_bic_node)
     leaves_labels = traversal.get_leaf_label()
     leaves_labels.to_csv(output_path + '/leaf_labels.csv')
-    leaves_labels = traversal.get_leaf_label(BIC_node=True)
-    leaves_labels.to_csv(output_path + '/BIC_stop_labels.csv',index=False)
+    # leaves_labels = traversal.get_leaf_label(BIC_node=True)
+    # leaves_labels.to_csv(output_path + '/BIC_stop_labels.csv',index=False)
 
     endtime = time.time()
 
     print('Time using: ', round(endtime-starttime, 3),'secs')
     plt.plot(list(range(len(bic_list))), bic_list)
-    plt.savefig('BIC_as_split.png')
+    # plt.savefig('BIC_as_split.png')
 
 if __name__ == "__main__":
     main()

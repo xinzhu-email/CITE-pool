@@ -38,6 +38,26 @@ if not os.path.exists(output_path):
 
 print('read data.')
 data = pd.read_csv(data_path,header=0,index_col=0)
+
+def smooth(x,item=0,num=6):
+    # i = [i for i in item][0]
+    # print(i,value[:5])
+    # print(value[0],value[1])
+    x = x.apply(np.expm1)
+    print('before',(x.isnull()).any())
+    for i in x.columns:
+        value = np.unique(x.loc[:,i].values.tolist())
+        num = min(len(value),num)
+        x.loc[:,i] += np.random.normal(loc=0, scale=1,size=x.shape[0]) * 0.01
+        # for k in range(num-1):
+        #     # print(x.loc[x.loc[:,i]==value[k],i])
+        #     x.loc[x.loc[:,i]==value[k],i] += np.random.normal(loc=0, scale=1, size=sum(x.loc[:,i]==value[k])) * (value[k+1]-value[k])*0.1
+        # print(i,':',len(value))
+    x = x.apply(np.log1p)
+    x.mask(x.isnull(),0)
+    # print('after',(x.isnull()).any())
+    return x
+data = smooth(data)
 dataplot = data
 
 if args.CLR:

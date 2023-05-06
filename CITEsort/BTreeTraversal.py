@@ -47,6 +47,8 @@ class BTreeTraversal:
 
         # print(self.bicminname)
         # print(self.nodename)
+        # nodename_temp = ['_'.join(x.key) for x in self.nodelist]
+        # self.nodename = [str(i)+'_'+nodename_temp[i] for i in range(len(nodename_temp))]
         # self.nodename = [str(i)+'_'+nodename_temp[i] for i in range(len(nodename_temp))]
         self.tree_summary, self.leaf_summary = self.summarize()
         if 'll' in self.tree.__dir__():
