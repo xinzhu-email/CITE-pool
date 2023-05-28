@@ -138,10 +138,11 @@ def visualize_pair(data,node,nodename,**plot_para):
     data.X = preprocessing.scale(data.X)
     # sc.pp.scale(data,max_value=10)
     sc.tl.pca(data,n_comps=10)
+    current_indices = node.indices   
     node_data = pd.DataFrame(data=data.obsm['X_pca'], index=np.array(current_indices), columns=['PC'+str(i) for i in range(10)])
     all_clustering = node.all_clustering_dic[2]
     marker_pairs = list(all_clustering.keys())
-    current_indices = node.indices   
+    
 
     plt.figure(figsize=(12,((len(marker_pairs)-1)//5+1)*2.5), dpi=96)
     sns.set_style("white")

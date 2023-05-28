@@ -42,6 +42,7 @@ def main():
     print('read data and run CITE-sort.')
 
     data = pd.read_csv(data_path,header = 0, index_col=0)
+    data.index = data.index.astype(str)
     tree, bic_list, min_bic_node = Choose_leaf(data=data,merge_cutoff=merge_cutoff,rawdata=data.copy())
     # tree = ReSplit(data,merge_cutoff)
     #tree = Matryoshka(data,merge_cutoff)

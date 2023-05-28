@@ -101,6 +101,7 @@ def main():
 def dfs(node, adata, merge_cutoff):
     if node.key == ('leaf',):
         adata_sub = adata[list(set(node.indices)&set(adata.obs_names)),:]
+        print(adata_sub.shape)
         # print(len(node.indices),adata_sub.X.shape)
         # sc.pp.scale(adata_sub, max_value=10)
         # sc.tl.pca(adata_sub, n_comps=10)
