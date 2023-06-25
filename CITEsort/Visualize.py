@@ -29,7 +29,8 @@ def visualize_node(data,node,nodename,**plot_para):
     current_indices = node.indices
     node_data = data.loc[current_indices,:]
     
-    plt.figure(figsize=(12,((data.shape[1]-1)//5+1)*2), dpi=70)
+    
+    # plt.figure(figsize=(12,((len(node.all_clustering_dic[1])-1)//5+1)*2), dpi=70)
     plt.style.use('seaborn-white')
     #ax.tick_params(axis='both', which='major', labelsize=10)
 
@@ -38,6 +39,7 @@ def visualize_node(data,node,nodename,**plot_para):
         markers = node_data.columns.values.tolist()
         for i in range(len(markers)):
             X = node_data.loc[:,markers[i]].values.reshape(-1, 1)
+            plt.figure(figsize=(12,((data.shape[1]-1)//5+1)*2), dpi=70)
             plt.subplot( (len(markers)-1)//5+1,5,i+1 )
             plt.hist(X,bins=30, density = True, color = "lightblue")
             plt.ylabel('density',fontsize=10)
@@ -46,10 +48,11 @@ def visualize_node(data,node,nodename,**plot_para):
     else:
         all_clustering = node.all_clustering_dic[1]
         markers = list(all_clustering.keys())
-        
+        plt.figure(figsize=(12,((len(node.all_clustering_dic[1])-1)//5+1)*2), dpi=70)
         for i in range(len(markers)):
             
             X = node_data.loc[:,markers[i]].values.reshape(-1, 1)
+            
             
             plt.subplot( (len(markers)-1)//5+1,5,i+1 )
 
@@ -114,7 +117,7 @@ def visualize_pair(data,node,nodename,**plot_para):
     
     all_clustering = node.all_clustering_dic[2]
     marker_pairs = list(all_clustering.keys())
-    current_indices = node.indices   
+    current_indices = node.indices 
 
     plt.figure(figsize=(12,((len(marker_pairs)-1)//5+1)*2.5), dpi=96)
     sns.set_style("white")
@@ -133,14 +136,14 @@ def visualize_pair(data,node,nodename,**plot_para):
     
         data_pair = pd.DataFrame({marker1:X1,marker2:X2,
                               'bp':bp_clustering,
-                              'mp':mp_clustering},index=node.indices)
+                              'mp':mp_clustering},index=current_indices)
 
         plt.subplot( (len(marker_pairs)-1)//5+1,5,i+1 )
         
         #shapes = ['s','X','+']
         #markers = dict(zip(np.unique(mp_clustering),[shapes[idx] for idx in range(mp_ncluster)]))
         sns.scatterplot(x=marker1, y=marker2,hue="bp",style="mp",
-                        data=data_pair,s=15,legend=False);
+                        data=data_pair,s=10,legend=False)
 
         marker_pair_joint = marker_pairs[i][0]+'_'+marker_pairs[i][1]
         subfig_title = marker_pair_joint+' ('+str(mp_ncluster)+'|'+str(bp_ncluster)+') ' + str(round(all_clustering[marker_pairs[i]]['similarity_stopped'],2))
@@ -358,7 +361,7 @@ def visualize_tree(root,data,outpath,filename,compact=False):
 
                 
         # left child 
-        if node.left is not None: 
+        if node.left is not None and node.left.key != ('cutleaf',): 
             nodelist.append(node.left.key)
             queue.append(node.left)
             i = i + 1
@@ -370,7 +373,8 @@ def visualize_tree(root,data,outpath,filename,compact=False):
             mean_temp = data.loc[node.left.indices,:].mean() 
             
             if node.left.key == ('leaf',):
-                # left leaf node       
+                # left leaf node     
+                # print(node.left.ind,node.left.key)  
                 if compact:
                     offset_in_leaf = ''
                 else:
@@ -383,8 +387,9 @@ def visualize_tree(root,data,outpath,filename,compact=False):
                 tree_dot.writelines(str(node.left.ind)+' [label="'+str(node.left.ind)+'_'+'_'.join(node.left.key)+'\\n'+ \
                                     str(len(node.left.indices))+ ' ('+percent+')\\n'+ \
                                     offset_in_leaf+'",fillcolor="'+col+'",fontsize=20];')
-            else:
+            elif node.left.key != ('cutleaf',):
                 # left branch node
+                # print(node.left.key)
                 all_clustering = node.left.all_clustering_dic[len(node.left.key)]
                 bp_ncluster = all_clustering[node.left.key]['bp_ncluster']
                 mp_ncluster = all_clustering[node.left.key]['mp_ncluster']
@@ -403,7 +408,7 @@ def visualize_tree(root,data,outpath,filename,compact=False):
                                 ', style='+['solid','bold'][node.where_dominant=='left']+'];')
 
         # right child 
-        if node.right is not None: 
+        if node.right is not None and node.right.key != ('cutleaf',): 
             nodelist.append(node.right.key)
             queue.append(node.right) 
             i = i + 1
@@ -415,6 +420,7 @@ def visualize_tree(root,data,outpath,filename,compact=False):
             mean_temp = data.loc[node.right.indices,:].mean() 
 
             if node.right.key == ('leaf',):
+                # print(node.right.ind,node.right.key)
                 # right leaf node
                 if compact:
                     offset_in_leaf = ''
@@ -429,8 +435,9 @@ def visualize_tree(root,data,outpath,filename,compact=False):
                                     str(len(node.right.indices))+ ' ('+percent+')'+'\\n'+ \
                                     offset_in_leaf+'",fillcolor="'+col+'",fontsize=20];')
 
-            else:
+            elif node.right.key != ('cutleaf',):
                 # right branch node
+                # print(node.right.key)
                 all_clustering = node.right.all_clustering_dic[len(node.right.key)]
                 bp_ncluster = all_clustering[node.right.key]['bp_ncluster']
                 mp_ncluster = all_clustering[node.right.key]['mp_ncluster']

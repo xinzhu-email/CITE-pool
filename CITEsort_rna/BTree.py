@@ -12,7 +12,7 @@ class BTree:
                  all_clustering_dic = None, where_dominant = None, weight=None, ll=None, bic=None,\
                  score_ll=None, score_dict=None, child_right=None, child_left=None, w_l=None, w_r=None, ind=None, marker=None,\
                  separable_feature=None, mean=None, cov=None, mean_l=None, mean_r=None, cov_l=None, cov_r=None, rescan=False, val_cnt=None,\
-                 pc_loading=None,parent_pc=None):
+                 pc_loading=None,parent_pc=None,outliers=None):
         self.key = key # a str
         self.right = right # a BstNode
         self.left = left # a BstNode
@@ -44,6 +44,7 @@ class BTree:
         self.val_cnt = val_cnt
         self.pc_loading = pc_loading
         self.parent_pc = parent_pc
+        self.outliers  = outliers
             
     
     def display(self):

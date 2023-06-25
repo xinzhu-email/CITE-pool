@@ -53,26 +53,26 @@ def main():
         adata = sc.Anndata(adata)
         print(adata.shape, adata.obs_names[0], adata.var_names[0])
     if adt_output != None:
-        f = open(adt_output+'/tree.pickle','rb')
+        f = open(adt_output+'tree.pickle','rb')
         tree = pickle.load(f)
         f.close()
         adata_sub = adata[tree.indices,:]
         md = MetaDIMM()
-        adata_sub = md.filter(adata_sub)
+        # adata_sub = md.filter(adata_sub)
         adata_sub = md.preprocess(adata_sub, normalize=True, log1p=True, hvg=True, scale=False)
         tree = dfs(tree, adata_sub, merge_cutoff)
     else:
-        ct_list = ['CD4 Naive','CD8 Naive','CD14 Mono']
-        adata = adata[adata.obs['label_l2'].isin(ct_list),:]
-        adata = adata[[i for i in adata.obs_names 
-        if adata.obs.loc[i,'label_l2'] in ct_list and adata.obs.loc[i,'donor']=='P2' and adata.obs.loc[i,'time']==0],:]
+        # ct_list = ['CD4 Naive','CD8 Naive','CD14 Mono']
+        # adata = adata[adata.obs['label_l2'].isin(ct_list),:]
+        # adata = adata[[i for i in adata.obs_names 
+        # if adata.obs.loc[i,'label_l2'] in ct_list and adata.obs.loc[i,'donor']=='P2' and adata.obs.loc[i,'time']==0],:]
         md = MetaDIMM()
-        adata = md.filter(adata)
+        # adata = md.filter(adata)
         adata = md.preprocess(adata, normalize=True, log1p=True, hvg=True, scale=False)
         # sc.pp.scale(adata, max_value=10)
         # sc.tl.pca(adata,n_comps=10)
         tree, bic_list, min_bic_node = Choose_leaf(data=adata,merge_cutoff=merge_cutoff)
-        adata.write_h5ad(output_path+'/adata_pp.h5ad')        
+        # adata.write_h5ad(output_path+'/adata_pp.h5ad')        
         # tree = ReSplit(adata,data_raw=adata_raw)
         # tree = ReSplit(data,merge_cutoff)
         #tree = Matryoshka(data,merge_cutoff)
@@ -94,7 +94,7 @@ def main():
 
     endtime = time.time()
 
-    # print('Time using: ', round(endtime-starttime, 3),'secs')
+    print('Time using: ', round(endtime-starttime, 3),'secs')
     # plt.plot(list(range(len(bic_list))), bic_list)
     # plt.savefig('BIC_as_split.png')
 

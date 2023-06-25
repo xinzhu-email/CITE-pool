@@ -14,7 +14,8 @@ from scipy import stats
 import pandas as pd
 import matplotlib
 import scanpy as sc
-from sklearn import preprocessing
+# from sklearn import preprocessing
+# from ReSplit import outlier_filter
 
 #node = traversal.get_node(0)
 #nodename = traversal.nodename[0]
@@ -32,10 +33,12 @@ def visualize_node(data,node,nodename,**plot_para):
     # print(np.array(node.pc_loading).shape)
     # node_data = np.dot(data[current_indices,:].X, np.array(node.pc_loading))
     data = data[list(set(node.indices)&set(data.obs_names)),:]
-    data.X = preprocessing.scale(data.X)
-    # sc.pp.scale(data,max_value=10)
+    # data.X = preprocessing.scale(data.X)
+
+    sc.pp.scale(data, max_value=10, zero_center=False)
     sc.tl.pca(data,n_comps=10)
     node_data = pd.DataFrame(data=data.obsm['X_pca'], index=np.array(current_indices), columns=['PC'+str(i) for i in range(10)])
+    
     # node_data = pd.DataFrame(data=node_data, index=np.array(current_indices), columns=[(name[-3:],) for name in node.pc_loading.columns])
     # node_data = data.loc[current_indices,:]
     
@@ -135,7 +138,8 @@ def visualize_pair(data,node,nodename,**plot_para):
     savename = plot_para.get('savename','.')
     
     data = data[list(set(node.indices)&set(data.obs_names)),:]
-    data.X = preprocessing.scale(data.X)
+    sc.pp.scale(data, max_value=10, zero_center=False)
+    # data.X = preprocessing.scale(data.X)
     # sc.pp.scale(data,max_value=10)
     sc.tl.pca(data,n_comps=10)
     current_indices = node.indices   

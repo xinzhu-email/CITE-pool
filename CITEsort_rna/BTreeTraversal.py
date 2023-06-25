@@ -11,7 +11,7 @@ sys.path.append("./CITEsort_rna")
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
-from Visualize import visualize_node, visualize_pair, visualize_umap, visualize_2dim
+from Visualize import visualize_node, visualize_pair, visualize_umap, visualize_2dim, visualize_tree
 
    
 '''
@@ -95,8 +95,22 @@ class BTreeTraversal:
         return label
     
     
+    def finetune_leaf(self, method, nodeID, label):
+        for i in range(len(self.nodelist)):
+            node = self.nodelist[i]
+            node.ind = i
+        if method == 'bfs':
+            self.nodelist = self.levelOrderTraversal(finetune=True, nodeID=nodeID)
+        else:
+            self.nodelist = self.preorderTraversal()
+        for i in range(len(self.nodelist)):
+            node = self.nodelist[i]
+            if self.nodelist[i].key == ('leaf',):
+                label.loc[self.nodelist[i].indices,'Label'] = str(i)+'_leaf'
+        return label
+
     
-    def get_leaf_label(self, BIC_node=False, midnodelist=None, midnames=None):
+    def get_leaf_label(self, BIC_node=False, midnodelist=None, midnames=None, finetune=False, method='bfs',nodeID=None):
         """generate label (one column, indicating which leaf cells are assigned.)"""
         label = pd.DataFrame({'GEM':self.tree.indices,'Label':[None]*len(self.tree.indices)},index=self.tree.indices)
         
@@ -107,6 +121,9 @@ class BTreeTraversal:
         elif BIC_node:
             for i in range(len(self.bicminname)):
                 label.loc[self.min_BIC_node[i].indices,'Label'] = self.bicminname[i]
+        elif finetune:
+            label = self.finetune_leaf(method,nodeID,label)
+            return self.nodelist, label
         else:
             for i in range(len(self.nodename)):
                 if self.nodename[i].split('_')[1] == 'leaf':
@@ -256,7 +273,7 @@ class BTreeTraversal:
     
     
     # dfs
-    def preorderTraversal(self):
+    def preorderTraversal(self, cutID):
 
         node = self.tree
         if node is None:
@@ -294,7 +311,7 @@ class BTreeTraversal:
         return bic, node_name
 
     # bfs
-    def _levelOrderTraversal(self): 
+    def _levelOrderTraversal(self, finetune=False): 
         #print('bfs...')
         node = self.tree
         if node is None: 
@@ -347,7 +364,7 @@ class BTreeTraversal:
             return nodelist
 
 
-    def levelOrderTraversal(self, root=None): 
+    def levelOrderTraversal(self, root=None, finetune=False, nodeID=None): 
         #print('bfs...')
         if root != None:
             node = root
@@ -361,9 +378,13 @@ class BTreeTraversal:
 
         queue.append(node) 
         nodelist.append(node)
+        cutID = []
 
         while(len(queue) > 0): 
-            node = queue.pop(0)         
+            node = queue.pop(0)   
+            if finetune:
+                node, cutID = bfs_finetune(node, nodeID, cutID)
+                nodelist[node.ind] = node
 
             if node.left is not None: 
                 nodelist.append(node.left)
@@ -372,9 +393,23 @@ class BTreeTraversal:
             if node.right is not None: 
                 nodelist.append(node.right)
                 queue.append(node.right) 
+            
+            
 
         return nodelist
  
-
+def bfs_finetune(node, nodeID, cutID):
+    if node.ind in nodeID:
+        node.key = ('leaf',)
+        cutID.append(node.left.ind)
+        cutID.append(node.right.ind)
+        return node, cutID
+            
+    if node.ind in cutID:
+        node.key = ('cutleaf',)
+        if node.left is not None:
+            cutID.append(node.left.ind)
+            cutID.append(node.right.ind)
+    return node, cutID
 
 
