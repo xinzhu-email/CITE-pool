@@ -43,7 +43,7 @@ def all_BIC(leaf_dict, n_features):
 def assign_GMM(sample, mean_list, cov_list, weight, if_log=False, marker_list=None, confidence_threshold=0, throw=True):
     """confidence_threshold is used to not assign dots with low confidence to each group:
         a big confidence_threshold represents a more strict standard for confidential dots"""
-    confidence_threshold = (1-confidence_threshold) / len(weight) * 2
+    # confidence_threshold = (1-confidence_threshold) / len(weight) * 2
     index = sample.index
     # sample = np.array(sample)
     weight = np.array(weight)
@@ -66,9 +66,15 @@ def assign_GMM(sample, mean_list, cov_list, weight, if_log=False, marker_list=No
     # p_prior = -p_prior 
     
     p_post = p_prior / (p_prior.sum(axis=1)[:,np.newaxis] )
-    pred_label = np.argmin(p_post,axis=1)
+    if if_log:
+        pred_label = np.argmin(p_post,axis=1)
+    else:
+        pred_label = np.argmax(p_post,axis=1)
     if throw:
-        pred_label = [pred_label[i] if p_post[i,pred_label[i]]<confidence_threshold else -1 for i in range(len(pred_label)) ]
+        if if_log:
+            pred_label = [pred_label[i] if p_post[i,pred_label[i]]<(1-confidence_threshold)/len(weight)*2 else -1 for i in range(len(pred_label)) ]
+        else:
+            pred_label = [pred_label[i] if p_post[i,pred_label[i]]>confidence_threshold/len(weight)*2  else -1 for i in range(len(pred_label)) ]
     # print(p_post[:10,:])
     # print(pred_label[:10])
     pred_label = pd.Series(data=pred_label,index=index)    
@@ -214,7 +220,7 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
         marker_list = list(set(marker_list))
 
         # print('marker_list:',marker_list)
-        new_label = assign_GMM(rawdata, mean_list, cov_list, w_list, marker_list=marker_list, if_log=True, confidence_threshold=0.4, throw=True)
+        new_label = assign_GMM(rawdata, mean_list, cov_list, w_list, marker_list=marker_list, if_log=False, confidence_threshold=0.8, throw=True)
 
         for i in range(len(leaf_list)):
             node = leaf_list[i]
@@ -245,18 +251,18 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
         _, bic_list, bic_min_node = Choose_leaf(leaf_dict=leaf_dict, data=data, bic_list=bic_list, leaf_list=leaf_list, n_features=n_features, rawdata=rawdata,merge_cutoff=merge_cutoff)
         # if bic_score <= min(bic_list):
         #     bic_min_node = leaf_list
-    else:
-        marker_list = [node.marker[i] for node in leaf_list for i in range(len(node.marker))]
-        mean_list = [node.mean for node in leaf_list] 
-        cov_list = [node.cov for node in leaf_list]
-        w_list = [node.weight for node in leaf_list] 
-        marker_list = list(set(marker_list))
+    # else:
+    #     marker_list = [node.marker[i] for node in leaf_list for i in range(len(node.marker))]
+    #     mean_list = [node.mean for node in leaf_list] 
+    #     cov_list = [node.cov for node in leaf_list]
+    #     w_list = [node.weight for node in leaf_list] 
+    #     marker_list = list(set(marker_list))
         
-        new_label = assign_GMM(rawdata, mean_list, cov_list, w_list, marker_list=marker_list, if_log=True, confidence_threshold=0, throw=False)
-        for i in range(len(leaf_list)):
-            node = leaf_list[i]
-            sub_data = data[new_label==i]
-            node.indices = sub_data.index.tolist()
+    #     new_label = assign_GMM(rawdata, mean_list, cov_list, w_list, marker_list=marker_list, if_log=True, confidence_threshold=0, throw=False)
+    #     for i in range(len(leaf_list)):
+    #         node = leaf_list[i]
+    #         sub_data = data[new_label==i]
+    #         node.indices = sub_data.index.tolist()
         # Final assignment
     return max_root, bic_list, bic_min_node
 
@@ -385,8 +391,8 @@ def HiScanFeatures(data,root,merge_cutoff,max_k,max_ndim,bic,parent_key={}):
 
     # print(parent_key)
     # key_marker = ['CD62P', 'CD4-2', 'CD4-1', 'CD3-1', 'CD27', 'CD45RA', 'CD56-2', 'CD56-1', 'CD45RO', 'CD127', 'CD16', 'CD14', 'CD19', 'CD8', 'CD192', 'CD3-2']
-    # key_marker = ['CD4-2', 'CD3-2', 'CD19', 'CD4-1', 'CD8', 'CD27', 'CD27', 'CD14', 'CLEC12A', 'CD16', 'CD45RA', 'CD127', 'CD45RO']
-    key_marker = ['CD4', 'CD3', 'CD19', 'CD8a', 'CD27', 'CD14', 'CD16', 'CD45RA', 'CD127-IL7Ra', 'CD45RO', 'CD69','CD25']
+    key_marker = ['CD16','CD62P','CD4-2', 'CD3-2','CD3-1', 'CD19', 'CD4-1', 'CD8', 'CD27', 'CD14', 'CLEC12A', 'CD16', 'CD45RA', 'CD127', 'CD45RO','CD25',  'CD56-1']
+    # key_marker = ['CD4', 'CD3', 'CD19', 'CD8a', 'CD27', 'CD14', 'CD16', 'CD45RA', 'CD127-IL7Ra', 'CD45RO', 'CD69','CD25']
     separable_features, bipartitions, scores, bic_list, all_clustering_dic, rescan = Scan(data,root,merge_cutoff,max_k,max_ndim,bic,parent_key,key_marker)
 
     if len(separable_features)==0:
@@ -503,12 +509,21 @@ def ScoreFeatures(data,root,merge_cutoff,max_k,ndim,bic,rescan_features=None,sep
                 if sum(assignment) < 30 or sum(~assignment) < 30:
                     ll_gain.append(-1000)
                     continue
-                gmm1 = GaussianMixture(1,covariance_type='full').fit(data.loc[assignment,marker_list]) 
-                ll1 = gmm1.lower_bound_ * sum(assignment)/len(assignment)
+                gmm1 = GaussianMixture(1,covariance_type='full')
+                ll1 = gmm1.fit(data.loc[assignment,marker_list]).lower_bound_ * sum(assignment)/len(assignment)
+                # print(np.array(data.loc[~assignment,marker_list]).shape)
+                # proba0 = pd.Series(gmm1.predict_proba(np.array(data.loc[assignment,marker_list])),index=data.loc[assignment,:].index)
+                # if proba0[proba0<0.99] < 30:
+                #     ll_gain.append(-1000)
+                #     continue
                 # bic1 = gmm1.bic(data.loc[assignment,marker_list]) 
                 
-                gmm0 = GaussianMixture(1,covariance_type='full').fit(data.loc[~assignment,marker_list])
-                ll0 = gmm0.lower_bound_ * sum(~assignment)/len(assignment)
+                gmm0 = GaussianMixture(1,covariance_type='full')
+                ll0 = gmm0.fit(data.loc[~assignment,marker_list]).lower_bound_ * sum(~assignment)/len(assignment)
+                # proba1 = pd.Series(gmm1.predict_proba(np.array(data.loc[~assignment,marker_list])),index=data.loc[~assignment,:].index)
+                # if proba1[proba1<0.99] < 30:
+                #     ll_gain.append(-1000)
+                #     continue
                 # bic0 = gmm0.bic(data.loc[~assignment,marker_list]) 
                 
                 gmm_ = GaussianMixture(1,covariance_type='full').fit(data.loc[:,marker_list])
@@ -544,7 +559,7 @@ def ScoreFeatures(data,root,merge_cutoff,max_k,ndim,bic,rescan_features=None,sep
 
     print('filted',len(rescan_features),'separable',len(scores))
 
-    if count < 20 and soft==False and (scores==[] or max(scores)<0) and ndim==1 and (len(F_set)-len(rescan_features))<len(F_set)/3:
+    if count < min(20,len(F_set)*0.6) and soft==False and (scores==[] or max(scores)<0) and ndim==1 and (len(F_set)-len(rescan_features))<len(F_set)/3:
 
         separable_features, bipartitions, scores, bic_list, all_clustering = ScoreFeatures(data,root,merge_cutoff,max_k,ndim,bic,
                         rescan_features, separable_features, bipartitions, scores, bic_list, all_clustering, soft=True)
@@ -563,7 +578,7 @@ def Clustering(x,merge_cutoff,max_k,bic,val_cnt,soft=False,dip=None):
     # print(np.array(x))
     if soft == False:
         if x.shape[1]==1:
-            if val_cnt.values <= min(min(x.shape[0]/30,48),x.shape[0]):
+            if val_cnt.values <= min(min(x.shape[0]/30,50),x.shape[0]):
                 clustering = _set_one_component(x) 
                 clustering['filter'] = 'filted'
                 clustering['dip'] = 0
@@ -576,7 +591,7 @@ def Clustering(x,merge_cutoff,max_k,bic,val_cnt,soft=False,dip=None):
                 return clustering
 
     if soft == True:
-        if x.shape[1]==1 and (val_cnt.values <= min(min(x.shape[0]/40,100),x.shape[0]) or dip<max((1-merge_cutoff)*0.004, 0.006)):
+        if x.shape[1]==1 and (val_cnt.values <= min(min(x.shape[0]/40,30),x.shape[0]) or dip<max((1-merge_cutoff)*0.004, 0.006)):
             # print(x.columns[0],'second filted')
             # clustering = _set_one_component(x) 
             # clustering['filter'] = 'filted'
@@ -586,16 +601,19 @@ def Clustering(x,merge_cutoff,max_k,bic,val_cnt,soft=False,dip=None):
     # if soft==False:
     # print(x.columns.values,x.shape[0]/30,val_cnt.values,dip)
     
-    if k_bic == 1 or (k_bic>3 and min(val_cnt.values)<300) :    
+    if k_bic == 1 or (k_bic>5 and min(val_cnt.values)<300) :    
             # if only one component, set values
         if soft:
             return
-        clustering = _set_one_component(x)      
+        clustering = _set_one_component(x) 
+        clustering['filter'] = 'too many components:'+str(k_bic)    
     else:
             # print(val_cnt.index, val_cnt.values)
         bp_gmm = GaussianMixture(k_bic).fit(x)
         clustering = merge_bhat(x,bp_gmm,merge_cutoff)
-    clustering['filter'] = 'variant value'
+        clustering['filter'] = 'variant value'
+    clustering['dip'] = dip
+    
     return clustering
 
 
@@ -652,7 +670,7 @@ def merge_bhat(x,bp_gmm,cutoff):
         max_pair = max(bhat_dic.items(), key=operator.itemgetter(1))[0]
         max_val = bhat_dic[max_pair]
 
-        if max_val > cutoff:# or max_val<0.001:
+        if max_val > cutoff or (max_val<0.051 and len(x)<1000):
             merged_i,merged_j = max_pair
             # update mergedtonumbers
             for idx,val in enumerate(mergedtonumbers):

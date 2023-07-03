@@ -59,7 +59,7 @@ def main():
         adata_sub = adata[tree.indices,:]
         md = MetaDIMM()
         # adata_sub = md.filter(adata_sub)
-        adata_sub = md.preprocess(adata_sub, normalize=True, log1p=True, hvg=True, scale=False)
+        adata_sub = md.preprocess(adata_sub, normalize=True, log1p=True, hvg=False, scale=False)
         tree = dfs(tree, adata_sub, merge_cutoff)
     else:
         # ct_list = ['CD4 Naive','CD8 Naive','CD14 Mono']
@@ -68,10 +68,10 @@ def main():
         # if adata.obs.loc[i,'label_l2'] in ct_list and adata.obs.loc[i,'donor']=='P2' and adata.obs.loc[i,'time']==0],:]
         md = MetaDIMM()
         # adata = md.filter(adata)
-        adata = md.preprocess(adata, normalize=True, log1p=True, hvg=True, scale=False)
+        adata = md.preprocess(adata, normalize=True, log1p=True, hvg=False, scale=False)
         # sc.pp.scale(adata, max_value=10)
         # sc.tl.pca(adata,n_comps=10)
-        tree, bic_list, min_bic_node = Choose_leaf(data=adata,merge_cutoff=merge_cutoff)
+        tree, bic_list, min_bic_node = Choose_leaf(data=adata,merge_cutoff=merge_cutoff,use_parent=True)
         # adata.write_h5ad(output_path+'/adata_pp.h5ad')        
         # tree = ReSplit(adata,data_raw=adata_raw)
         # tree = ReSplit(data,merge_cutoff)
@@ -106,7 +106,7 @@ def dfs(node, adata, merge_cutoff):
         # sc.pp.scale(adata_sub, max_value=10)
         # sc.tl.pca(adata_sub, n_comps=10)
         # node.stop = None
-        node, bic_list, min_bic_node = Choose_leaf(data=adata_sub,merge_cutoff=merge_cutoff) 
+        node, bic_list, min_bic_node = Choose_leaf(data=adata_sub,merge_cutoff=merge_cutoff,use_parent=True) 
         return node       
     else:
         node.left = dfs(node.left, adata, merge_cutoff)

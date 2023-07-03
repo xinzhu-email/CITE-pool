@@ -35,7 +35,8 @@ def visualize_node(data,node,nodename,**plot_para):
     data = data[list(set(node.indices)&set(data.obs_names)),:]
     # data.X = preprocessing.scale(data.X)
 
-    sc.pp.scale(data, max_value=10, zero_center=False)
+    sc.pp.filter_genes(data, min_cells=3)
+    sc.pp.scale(data, max_value=10, zero_center=True)
     sc.tl.pca(data,n_comps=10)
     node_data = pd.DataFrame(data=data.obsm['X_pca'], index=np.array(current_indices), columns=['PC'+str(i) for i in range(10)])
     
@@ -138,7 +139,8 @@ def visualize_pair(data,node,nodename,**plot_para):
     savename = plot_para.get('savename','.')
     
     data = data[list(set(node.indices)&set(data.obs_names)),:]
-    sc.pp.scale(data, max_value=10, zero_center=False)
+    sc.pp.filter_genes(data, min_cells=3)
+    sc.pp.scale(data, max_value=10, zero_center=True)
     # data.X = preprocessing.scale(data.X)
     # sc.pp.scale(data,max_value=10)
     sc.tl.pca(data,n_comps=10)
@@ -424,7 +426,7 @@ def visualize_tree(root,data,outpath,filename,compact=False):
                 tree_dot.writelines(str(i)+' [label="'+str(i)+'_'+'_'.join(node.left.key)+'\\n'+ \
                                     str(len(node.left.indices))+ ' ('+percent+')\\n'+ \
                                     offset_in_leaf+'",fillcolor="'+col+'",fontsize=20];')
-            else:
+            elif node.left.key != ('cutleaf',):
                 # left branch node
                 all_clustering = node.left.all_clustering_dic[len(node.left.key)]
                 bp_ncluster = all_clustering[node.left.key]['bp_ncluster']
@@ -470,7 +472,7 @@ def visualize_tree(root,data,outpath,filename,compact=False):
                                     str(len(node.right.indices))+ ' ('+percent+')'+'\\n'+ \
                                     offset_in_leaf+'",fillcolor="'+col+'",fontsize=20];')
 
-            else:
+            elif node.right.key != ('cutleaf',):
                 # right branch node
                 all_clustering = node.right.all_clustering_dic[len(node.right.key)]
                 bp_ncluster = all_clustering[node.right.key]['bp_ncluster']

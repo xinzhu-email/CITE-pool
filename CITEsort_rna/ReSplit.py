@@ -173,7 +173,7 @@ def outlier_filter(data):
         if xmax-xmin < 3*iqr.loc['iqr',col]:
             continue
         index = index & set(data[data.loc[:,col]<iqr.loc['max',col]].index) & set(data[data.loc[:,col]>iqr.loc['min',col]].index)
-        if len(data)-len(index) > 30:
+        if len(data)-len(index) > 30 or len(index)<50:
             index = set(data.index) - set(data[col].iloc[[np.argmax(list(data.loc[:,col])),np.argmin(list(data.loc[:,col]))]].index)
             break  
     return list(index), flag
@@ -181,16 +181,19 @@ def outlier_filter(data):
 
 from sklearn import preprocessing
 
-def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0,merge_cutoff=0.1,max_k=10,max_ndim=2,bic='bic',bic_stop=False,rawdata=None,use_parent=False):
-    # leaf_dict only save index of current leaves, leaf_list save the sort of surrent leaves
-    max_ll, max_root, separable = 0, None, False
-    if leaf_dict == None:
-        # data = smooth(data)
-        # val_cnt = value_count(rawdata)
-            # sc.pp.scale(data, max_value=10)
-
-        # data = sc.tl.pca(data,n_comps=10,copy=True)
-        # data.X = preprocessing.scale(data.X)
+def pp_pca(data=None,merge_cutoff=0.1,weight=1,max_k=5,max_ndim=2,bic='bic',root=None, val_cnt=None, mean=[], cov=None, use_parent=False):
+    if len(data) < 50:
+        root = BTree(('leaf',))
+        root.indices = data.obs_names.values.tolist()
+        root.stop = 'small size and no pca'
+        return root
+    if use_parent == True:
+        sc.tl.pca(data,n_comps=10)
+        data_pc = pd.DataFrame(data=data.obsm['X_pca'],index=data.obs_names,columns=['PC'+str(i) for i in range(data.obsm['X_pca'].shape[1])])
+        root = ReSplit_pca(data_pc, merge_cutoff, weight, max_k, max_ndim, bic, mean=mean, cov=cov)
+    
+    if use_parent==False or root.stop != None:
+        sc.pp.filter_genes(data, min_cells=3)
         sc.pp.scale(data, max_value=10, zero_center=False)
         sc.tl.pca(data, n_comps=10)
         # data = data
@@ -198,18 +201,71 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
         indices, flag = outlier_filter(data_pc.iloc[:,:5])
         data_pc = data_pc.loc[indices,:]
         if len(data_pc) < 0.99 * len(data) or flag:
+            if len(data_pc) < 50:
+                root = BTree(('leaf',))
+                root.indices = data_pc.index.values.tolist()
+                root.all_clustering_dic = _set_small_leaf(data_pc)
+                root.stop = 'small size'
+                return root
+            
             data = data[data_pc.index,:]
-            sc.pp.scale(data, zero_center=False)
-            sc.tl.pca(data,n_comps=10)
-            data_pc = pd.DataFrame(data=data.obsm['X_pca'],index=data.obs_names,columns=['PC'+str(i) for i in range(data.obsm['X_pca'].shape[1])])
-        root=ReSplit_pca(data_pc,merge_cutoff)
-        root.outliers = (flag,set(data.obs_names)-set(root.indices))
+            sc.pp.filter_genes(data, min_cells=10)
+            if data.shape[1] > 100:
+                sc.pp.scale(data, zero_center=False)
+                sc.tl.pca(data,n_comps=10)
+                data_pc = pd.DataFrame(data=data.obsm['X_pca'],index=data.obs_names,columns=['PC'+str(i) for i in range(data.obsm['X_pca'].shape[1])])    
+                    
+            else:
+                if use_parent==False:
+                    root = BTree(('leaf',))
+                    root.indices = data_pc.index.values.tolist()
+                    root.stop = 'few features'
+                    return root
+                return root
+        if len(mean)==0:
+            mean = data_pc.mean()
+            cov = data_pc.cov()
+        
+
+        root = ReSplit_pca(data_pc, merge_cutoff, weight, max_k, max_ndim, bic, mean=mean, cov=cov)
+        root.all_clustering_dic[0] = None
+        return root
+    else:
+        return root
+        # root.outliers = (flag,set(data.obs_names)-set(root.indices))
+
+def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0,merge_cutoff=0.1,max_k=10,max_ndim=2,bic='bic',bic_stop=False,rawdata=None,use_parent=False):
+    # leaf_dict only save index of current leaves, leaf_list save the sort of surrent leaves
+    max_ll, max_root, separable = 0, None, False
+    if leaf_dict == None:
+        root = pp_pca(data=data,merge_cutoff=merge_cutoff,use_parent=False)
+        # data = smooth(data)
+        # val_cnt = value_count(rawdata)
+            # sc.pp.scale(data, max_value=10)
+
+        # data = sc.tl.pca(data,n_comps=10,copy=True)
+        # data.X = preprocessing.scale(data.X)
+        # sc.pp.filter_genes(data, min_cells=3)
+        # sc.pp.scale(data, max_value=10, zero_center=False)
+        # sc.tl.pca(data, n_comps=10)
+        # # data = data
+        # data_pc = pd.DataFrame(data=data.obsm['X_pca'],index=data.obs_names,columns=['PC'+str(i) for i in range(data.obsm['X_pca'].shape[1])])
+        # indices, flag = outlier_filter(data_pc.iloc[:,:5])
+        # data_pc = data_pc.loc[indices,:]
+        # if len(data_pc) < 0.99 * len(data) or flag:
+        #     data = data[data_pc.index,:]
+        #     sc.pp.filter_genes(data, min_cells=10)
+        #     sc.pp.scale(data, zero_center=False)
+        #     sc.tl.pca(data,n_comps=10)
+        #     data_pc = pd.DataFrame(data=data.obsm['X_pca'],index=data.obs_names,columns=['PC'+str(i) for i in range(data.obsm['X_pca'].shape[1])])
+        # root=ReSplit_pca(data_pc,merge_cutoff)
+        # root.outliers = (flag,set(data.obs_names)-set(root.indices))
         
         if root.key != ('leaf',):
-            root.mean = data_pc.loc[:,root.key].mean()
-            root.cov = data_pc.loc[:,root.key].cov()
+            # root.mean = data_pc.loc[:,root.key].mean()
+            # root.cov = data_pc.loc[:,root.key].cov()
             root.ind = 0
-            root.pc_loading = pd.DataFrame(data.varm['PCs'][:,[int(key[-1]) for key in root.key]],index=data.var_names,columns=[str(root.ind)+key for key in root.key])
+            # root.pc_loading = pd.DataFrame(data.varm['PCs'][:,[int(key[-1]) for key in root.key]],index=data.var_names,columns=[str(root.ind)+key for key in root.key])
             # root.parent_pc = root.pc_loading
             
             # print(root.pc_loading.shape)
@@ -239,68 +295,92 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
         print('node.key:',list(max_root.key))
         
 
-        data_l = data[max_root.left_indices,:]
-        if use_parent == True:
-            data_lpc = pd.DataFrame(data=data_l.obsm['X_pca'],index=max_root.left_indices,columns=['PC'+str(i) for i in range(data_l.obsm['X_pca'].shape[1])])
-            max_root.left = ReSplit_pca(data_lpc, merge_cutoff, max_root.weight * max_root.w_l, max_k, max_ndim, bic, mean=max_root.mean_l, cov=max_root.cov_l)
+        data_l = data[max_root.left_indices,:].copy()
+        max_root.left = pp_pca(data_l, merge_cutoff, max_root.weight * max_root.w_l, max_k, max_ndim, bic, mean=max_root.mean_l, cov=max_root.cov_l, use_parent=use_parent)
+        # if use_parent == True:
+        #     sc.tl.pca(data_l,n_comps=10)
+        #     data_lpc = pd.DataFrame(data=data_l.obsm['X_pca'],index=max_root.left_indices,columns=['PC'+str(i) for i in range(data_l.obsm['X_pca'].shape[1])])
+        #     max_root.left = ReSplit_pca(data_lpc, merge_cutoff, max_root.weight * max_root.w_l, max_k, max_ndim, bic, mean=max_root.mean_l, cov=max_root.cov_l)
 
+        # if use_parent==False or max_root.left.stop != None:
+        #     sc.pp.filter_genes(data_l, min_cells=10)
+        #     sc.pp.scale(data_l, zero_center=False)
+        #     # data_l.X = preprocessing.scale(data_l.X)
+        #     sc.tl.pca(data_l,n_comps=10)
+        #     data_lpc = pd.DataFrame(data=data_l.obsm['X_pca'],index=max_root.left_indices,columns=['PC'+str(i) for i in range(data_l.obsm['X_pca'].shape[1])])
+        #     indices, flag = outlier_filter(data_lpc.iloc[:,:5])
 
-        if use_parent==False or max_root.left.stop != None:
-            sc.pp.scale(data_l, zero_center=False)
-            # data_l.X = preprocessing.scale(data_l.X)
-            sc.tl.pca(data_l,n_comps=10)
-            data_lpc = pd.DataFrame(data=data_l.obsm['X_pca'],index=max_root.left_indices,columns=['PC'+str(i) for i in range(data_l.obsm['X_pca'].shape[1])])
-            indices, flag = outlier_filter(data_lpc.iloc[:,:5])
-            data_lpc = data_lpc.loc[indices,:]
-            if len(data_lpc) < 0.99 * len(data_l) or flag:
-                # print(flag, len(data_lpc),'from',len(data_l))
-                data_l = data_l[data_lpc.index,:]
-                # data_l.X = preprocessing.scale(data_l.X)
-                sc.pp.scale(data_l, zero_center=False)
-                sc.tl.pca(data_l,n_comps=10)
-                data_lpc = pd.DataFrame(data=data_l.obsm['X_pca'],index=data_l.obs_names,columns=['PC'+str(i) for i in range(data_l.obsm['X_pca'].shape[1])])
-            max_root.left = ReSplit_pca(data_lpc, merge_cutoff, max_root.weight * max_root.w_l, max_k, max_ndim, bic, mean=max_root.mean_l, cov=max_root.cov_l)
-            max_root.left.all_clustering_dic[0] = None
-            max_root.outliers = set(max_root.left_indices)-set(max_root.left.indices)
-            print('child')
-        else:
-            max_root.left.all_clustering_dic[0] = data_l.obsm['X_pca']
-            print('parent')
+        #     data_lpc = data_lpc.loc[indices,:]
+        #     if len(data_lpc) < 0.99 * len(data_l) or flag:
+        #         # print(flag, len(data_lpc),'from',len(data_l))
+        #         data_l = data_l[data_lpc.index,:]
+        #         # data_l.X = preprocessing.scale(data_l.X)
+        #         sc.pp.filter_genes(data_l, min_cells=10)
+        #         if data_l.shape[1] > 100:
+        #             sc.pp.scale(data_l, zero_center=False)
+        #             sc.tl.pca(data_l,n_comps=10)
+        #             data_lpc = pd.DataFrame(data=data_l.obsm['X_pca'],index=data_l.obs_names,columns=['PC'+str(i) for i in range(data_l.obsm['X_pca'].shape[1])])
+        #         else:
+        #             if use_parent==False:
+        #                 max_root.left = BTree(('leaf',))
+        #                 max_root.left.stop = 'few features'
+        #             flag = False
+        #     if flag:
+        #         max_root.left = ReSplit_pca(data_lpc, merge_cutoff, max_root.weight * max_root.w_l, max_k, max_ndim, bic, mean=max_root.mean_l, cov=max_root.cov_l)
+        #         max_root.left.all_clustering_dic[0] = None
+        #         max_root.outliers = set(max_root.left_indices)-set(max_root.left.indices)
+        #         print('child')
+        # print(use_parent)
+        # if max_root.left.stop != None:
+        #     max_root.left.all_clustering_dic[0] = data_l.obsm['X_pca']
+        #     print('parent')
         max_root.left.ind = max(leaf_dict.keys()) + 1
-        # max_root.left.parent_pc = max_root.pc_loading
-        # if max_root.left.key[0] != 'leaf':
-        #     max_root.left.pc_loading = pd.DataFrame(data_l.varm['PCs'][:,[int(key[-1]) for key in max_root.left.key]],
-        #     columns=[str(max_root.left.ind)+key for key in max_root.left.key],index=data_l.var_names)
-        del data_l        
+        # # max_root.left.parent_pc = max_root.pc_loading
+        # # if max_root.left.key[0] != 'leaf':
+        # #     max_root.left.pc_loading = pd.DataFrame(data_l.varm['PCs'][:,[int(key[-1]) for key in max_root.left.key]],
+        # #     columns=[str(max_root.left.ind)+key for key in max_root.left.key],index=data_l.var_names)
+        # del data_l        
         leaf_dict[max_root.left.ind] = max_root.left
 
 
-        data_r = data[max_root.right_indices,:]
-        if use_parent == True:
-            data_rpc = pd.DataFrame(data=data_r.obsm['X_pca'],index=max_root.right_indices,columns=['PC'+str(i) for i in range(data_r.obsm['X_pca'].shape[1])])
-            max_root.right = ReSplit_pca(data_rpc, min(merge_cutoff,0.2), max_root.weight * max_root.w_r, max_k, max_ndim, bic, mean=max_root.mean_r, cov=max_root.cov_r)
+        data_r = data[max_root.right_indices,:].copy()
+        max_root.right = pp_pca(data_r, merge_cutoff, max_root.weight * max_root.w_r, max_k, max_ndim, bic, mean=max_root.mean_r, cov=max_root.cov_r,  use_parent=use_parent)
+        # if use_parent == True:
+        #     sc.tl.pca(data_r,n_comps=10)
+        #     data_rpc = pd.DataFrame(data=data_r.obsm['X_pca'],index=max_root.right_indices,columns=['PC'+str(i) for i in range(data_r.obsm['X_pca'].shape[1])])
+        #     max_root.right = ReSplit_pca(data_rpc, merge_cutoff, max_root.weight * max_root.w_r, max_k, max_ndim, bic, mean=max_root.mean_r, cov=max_root.cov_r)
 
-        if use_parent==False or max_root.right.stop != None:
-            # data_r.X = preprocessing.scale(data_r.X)
-            sc.pp.scale(data_r, zero_center=False)
-            sc.tl.pca(data_r,n_comps=10)
-            data_rpc = pd.DataFrame(data=data_r.obsm['X_pca'],index=max_root.right_indices,columns=['PC'+str(i) for i in range(data_r.obsm['X_pca'].shape[1])])
-            indices, flag = outlier_filter(data_rpc.iloc[:,:5])
-            data_rpc = data_rpc.loc[indices,:]
-            if len(data_rpc) < 0.99 * len(data_r) or flag:
-                # print(flag, len(data_rpc),'from',len(data_r))
-                data_r = data_r[indices,:]
-                # data_r.X = preprocessing.scale(data_r.X)
-                sc.pp.scale(data_r, zero_center=False)
-                sc.tl.pca(data_r,n_comps=10)
-                data_rpc = pd.DataFrame(data=data_r.obsm['X_pca'],index=indices,columns=['PC'+str(i) for i in range(data_r.obsm['X_pca'].shape[1])])
-            max_root.right = ReSplit_pca(data_rpc, merge_cutoff, max_root.weight * max_root.w_r, max_k, max_ndim, bic, mean=max_root.mean_r, cov=max_root.cov_r)
-            max_root.right.all_clustering_dic[0] = None
-            max_root.outliers = set(max_root.right_indices)-set(max_root.right.indices)
-            print('child')
-        else: 
-            max_root.right.all_clustering_dic[0] = data_r.obsm['X_pca']
-            print('parent')
+        # if use_parent==False or max_root.right.stop != None:
+        #     # data_r.X = preprocessing.scale(data_r.X)
+        #     sc.pp.filter_genes(data_r, min_cells=10)
+        #     sc.pp.scale(data_r, zero_center=False)
+        #     sc.tl.pca(data_r,n_comps=10)
+        #     data_rpc = pd.DataFrame(data=data_r.obsm['X_pca'],index=max_root.right_indices,columns=['PC'+str(i) for i in range(data_r.obsm['X_pca'].shape[1])])
+        #     indices, flag = outlier_filter(data_rpc.iloc[:,:5])
+        #     data_rpc = data_rpc.loc[indices,:]
+        #     if len(data_rpc) < 0.99 * len(data_r) or flag:
+        #         # print(flag, len(data_rpc),'from',len(data_r))
+        #         data_r = data_r[indices,:]
+        #         # data_r.X = preprocessing.scale(data_r.X)
+        #         sc.pp.filter_genes(data_r, min_cells=10)
+        #         if data_r.shape[1] > 100:
+        #             sc.pp.scale(data_r, zero_center=False)
+        #             sc.tl.pca(data_r,n_comps=10)
+        #             data_rpc = pd.DataFrame(data=data_r.obsm['X_pca'],index=indices,columns=['PC'+str(i) for i in range(data_r.obsm['X_pca'].shape[1])])
+        #         else:
+        #             if use_parent==False:
+        #                 max_root.right = BTree(('leaf',))
+        #                 max_root.right.stop = 'few features'
+        #             flag = False
+        #     if flag:
+        #         max_root.right = ReSplit_pca(data_rpc, merge_cutoff, max_root.weight * max_root.w_r, max_k, max_ndim, bic, mean=max_root.mean_r, cov=max_root.cov_r)
+        #         max_root.right.all_clustering_dic[0] = None
+        #         max_root.outliers = set(max_root.right_indices)-set(max_root.right.indices)
+        #         print('child')
+        # print(use_parent)
+        # if max_root.right.stop != None: 
+        #     max_root.right.all_clustering_dic[0] = data_r.obsm['X_pca']
+        #     print('parent')
         # max_root.right.parent_pc = max_root.pc_loading
         max_root.right.ind = max(leaf_dict.keys()) + 1
         # if max_root.right.key[0] != 'leaf':
@@ -308,7 +388,7 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
         #     columns=[str(max_root.right.ind)+key for key in max_root.right.key],index=data_r.var_names)
         del data_r        
         leaf_dict[max_root.right.ind] = max_root.right
-
+        print('ind',max_root.ind)
         leaf_dict.pop(max_root.ind)
         leaf_list = [x for x in leaf_list if x!=max_root]
         leaf_list.append(max_root.left)
@@ -344,16 +424,16 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
             # leaf_list[i] = node
 
         
-        n_features = n_features + len(max_root.key)
-        bic_score = all_BIC(leaf_dict, n_features)
-        if bic_list!=[] and min(bic_list)-bic_score < 1000:
-            bic_stop = False
-        bic_list.append(bic_score)
+        # n_features = n_features + len(max_root.key)
+        # bic_score = all_BIC(leaf_dict, n_features)
+        # if bic_list!=[] and min(bic_list)-bic_score < 1000:
+        #     bic_stop = False
+        # bic_list.append(bic_score)
         
         if bic_stop == False:
-            _, bic_list, bic_min_node = Choose_leaf(leaf_dict=leaf_dict, data=data, bic_list=bic_list, leaf_list=leaf_list, n_features=n_features, rawdata=rawdata, merge_cutoff=merge_cutoff)
-        if bic_score <= min(bic_list):
-            bic_min_node = leaf_list
+            _, bic_list, bic_min_node = Choose_leaf(leaf_dict=leaf_dict, data=data, bic_list=bic_list, leaf_list=leaf_list, n_features=n_features, rawdata=rawdata, merge_cutoff=merge_cutoff, use_parent=use_parent)
+        # if bic_score <= min(bic_list):
+        #     bic_min_node = leaf_list
     # else:
     #     dfs = [node.parent_pc.T for node in leaf_list]
     #     df = reduce(lambda x, y: pd.concat([x,y], axis=0, join='inner'), dfs).T
@@ -413,7 +493,7 @@ def ReSplit_pca(data_pc=None,merge_cutoff=0.1,weight=1,max_k=5,max_ndim=2,bic='b
     root.weight = weight
     root.stop = None
 
-    if data_pc.shape[0] < 2:        
+    if data_pc.shape[0] < 50:        
         root.all_clustering_dic = _set_small_leaf(data_pc)
         root.stop = 'small size'
         return root
@@ -521,25 +601,6 @@ def ReSplit_pca(data_pc=None,merge_cutoff=0.1,weight=1,max_k=5,max_ndim=2,bic='b
     # root.right = ReSplit(child_right,merge_cutoff,weight * w_r,max_k,max_ndim,bic)
 
     return root
-
-
-def choose_pca(X_pc,root,merge_cutoff,max_k,max_ndim,bic):
-    dip = np.zeros(X_pc.shape[1])
-    for j in range(X_pc.shape[1]):
-        dip[j] = diptest.dipstat(X_pc[:,j])
-        if dip[j] > 0.05:
-            return j
-        elif dip[j] >0.01 and j+1==X_pc.shape[1]:
-            return j
-        elif dip[j] >0.01 and j+1<X_pc.shape[1]:
-            if dip[j+1] < 0.01:
-                return j
-            elif dip[j+1] > 0.05:
-                return j
-            else:
-                subpc = pd.DataFrame(data=X_pc[:,j:j+2],columns=[str(j),str(j+1)])
-                separable_features, bipartitions, scores_ll, bic_list, all_clustering_dic, rescan = HiScanFeatures(data,root,merge_cutoff,max_k,max_ndim,bic)
-
 
 
 def HiScanFeatures(data,root,merge_cutoff,max_k,max_ndim,bic):
