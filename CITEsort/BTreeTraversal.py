@@ -37,19 +37,20 @@ class BTreeTraversal:
         if self.method == 'dfs':
             self.nodelist = self.preorderTraversal()
 
-        templist = list(range(len(self.nodelist)))
-        for node in self.nodelist:
-            templist[node.ind] = node
-        self.nodelist = templist
+        # templist = list(range(len(self.nodelist)))
+        # for node in self.nodelist:
+        #     templist[node.ind] = node
+        # self.nodelist = templist
         if min_BIC_node!=None:
             self.bicminname = [str(x.ind)+'_'+'_'.join(x.key) for x in self.min_BIC_node]
-        self.nodename = [str(x.ind)+'_'+'_'.join(x.key) for x in self.nodelist]
+        # self.nodename = [str(x.ind)+'_'+'_'.join(x.key) for x in self.nodelist]
 
         # print(self.bicminname)
         # print(self.nodename)
-        # nodename_temp = ['_'.join(x.key) for x in self.nodelist]
+        nodename_temp = ['_'.join(x.key) for x in self.nodelist]
         # self.nodename = [str(i)+'_'+nodename_temp[i] for i in range(len(nodename_temp))]
-        # self.nodename = [str(i)+'_'+nodename_temp[i] for i in range(len(nodename_temp))]
+        self.nodename = [str(i)+'_'+nodename_temp[i] for i in range(len(nodename_temp))]
+        
         self.tree_summary, self.leaf_summary = self.summarize()
         if 'll' in self.tree.__dir__():
             self.ll = self.leaf_summary['ll'].sum()
@@ -366,11 +367,11 @@ class BTreeTraversal:
         while(len(queue) > 0): 
             node = queue.pop(0)         
 
-            if node.left is not None: 
+            if node.left is not None and node.key != ('cutleaf',): 
                 nodelist.append(node.left)
                 queue.append(node.left)
 
-            if node.right is not None: 
+            if node.right is not None and node.key != ('cutleaf',): 
                 nodelist.append(node.right)
                 queue.append(node.right) 
 

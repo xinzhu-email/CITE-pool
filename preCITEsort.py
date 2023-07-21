@@ -57,7 +57,7 @@ def smooth(x,item=0,num=6):
     x.mask(x.isnull(),0)
     # print('after',(x.isnull()).any())
     return x
-data = smooth(data)
+# data = smooth(data)
 dataplot = data
 
 if args.CLR:

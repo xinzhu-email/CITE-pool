@@ -156,7 +156,7 @@ def value_count(data):
 
 def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0,merge_cutoff=0.1,max_k=10,max_ndim=2,bic='bic',bic_stop=False,rawdata=None):
     # leaf_dict only save index of current leaves, leaf_list save the sort of surrent leaves
-    if leaf_dict == None:
+    if leaf_list == None:
         data, rawdata = smooth(data)
         val_cnt = value_count(rawdata)
 
@@ -164,12 +164,15 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
         leaf_dict = {0: root}
         root.ind = 0
         leaf_list = [root]
-        
+        max_root = root
+    
+    else:
+        max_root = None
     ### _____Choose maxmum loglikely hood gain as new root_____
-    max_ll, max_root, separable = -1000, None, False
+    max_ll, separable = -1000, False
     # print(leaf_dict.items())
-    for key in list(leaf_dict.keys()):
-        node = leaf_dict[key]
+    for node in leaf_list:
+        # node = leaf_dict[key]
         if node.stop != None:
             # leaf_dict.pop(node.ind)
             continue
@@ -193,15 +196,15 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
 
         left_counts = value_count(rawdata.loc[max_root.left_indices,:])
         max_root.left = ReSplit(data.loc[max_root.left_indices,:], merge_cutoff, max_root.weight * max_root.w_l, max_k, max_ndim, bic, marker_set=marker_set, val_cnt=left_counts, parent_key=max_root.key)
-        max_root.left.ind = max(leaf_dict.keys()) + 1
-        leaf_dict[max_root.left.ind] = max_root.left
+        # max_root.left.ind = max(leaf_dict.keys()) + 1
+        # leaf_dict[max_root.left.ind] = max_root.left
 
         right_counts = value_count(rawdata.loc[max_root.right_indices,:])
         max_root.right = ReSplit(data.loc[max_root.right_indices,:], merge_cutoff, max_root.weight * max_root.w_r, max_k, max_ndim, bic, marker_set=marker_set, val_cnt=right_counts, parent_key=max_root.key)
-        max_root.right.ind = max(leaf_dict.keys()) + 1
-        leaf_dict[max_root.right.ind] = max_root.right
+        # max_root.right.ind = max(leaf_dict.keys()) + 1
+        # leaf_dict[max_root.right.ind] = max_root.right
 
-        leaf_dict.pop(max_root.ind)
+        # leaf_dict.pop(max_root.ind)
         leaf_list = [x for x in leaf_list if x!=max_root]
         leaf_list.append(max_root.left)
         leaf_list.append(max_root.right)
@@ -236,8 +239,8 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
             # node = ReSplit(sub_data, merge_cutoff, len(sub_data)/len(data), max_k, max_ndim, bic, marker_set=node.marker, root=node)
             # node.ind= ind
             
-            leaf_dict.pop(node.ind)
-            leaf_dict[node.ind] = node
+            # leaf_dict.pop(node.ind)
+            # leaf_dict[node.ind] = node
             leaf_list[i] = node
 
         
@@ -390,8 +393,8 @@ def HiScanFeatures(data,root,merge_cutoff,max_k,max_ndim,bic,parent_key={}):
     # Try to separate on one dimension
 
     # print(parent_key)
-    # key_marker = ['CD62P', 'CD4-2', 'CD4-1', 'CD3-1', 'CD27', 'CD45RA', 'CD56-2', 'CD56-1', 'CD45RO', 'CD127', 'CD16', 'CD14', 'CD19', 'CD8', 'CD192', 'CD3-2']
-    key_marker = ['CD16','CD62P','CD4-2', 'CD3-2','CD3-1', 'CD19', 'CD4-1', 'CD8', 'CD27', 'CD14', 'CLEC12A', 'CD16', 'CD45RA', 'CD127', 'CD45RO','CD25',  'CD56-1']
+    key_marker = ['TIGIT','PD-1','CD25']
+    # key_marker = ['CD16','CD62P','CD4-2', 'CD3-2','CD3-1', 'CD19', 'CD4-1', 'CD8', 'CD27', 'CD14', 'CLEC12A', 'CD16', 'CD45RA', 'CD127', 'CD45RO','CD25',  'CD56-1']
     # key_marker = ['CD4', 'CD3', 'CD19', 'CD8a', 'CD27', 'CD14', 'CD16', 'CD45RA', 'CD127-IL7Ra', 'CD45RO', 'CD69','CD25']
     separable_features, bipartitions, scores, bic_list, all_clustering_dic, rescan = Scan(data,root,merge_cutoff,max_k,max_ndim,bic,parent_key,key_marker)
 
@@ -415,7 +418,7 @@ def Scan(data,root,merge_cutoff,max_k,max_ndim,bic,parent_key={},scanfeatures=[]
         for item in all_clustering_dic[ndim]:
             val = all_clustering_dic[ndim][item]['similarity_stopped']
             ### 考虑阈值是否应该随着用户指定调整
-            if val > merge_cutoff and val < min(merge_cutoff*5,0.8):
+            if val > merge_cutoff and val < min(merge_cutoff*3,0.8):
                 rescan_features.append(item[0])
         
         for ndim in range(2,max_ndim+1):
@@ -578,7 +581,7 @@ def Clustering(x,merge_cutoff,max_k,bic,val_cnt,soft=False,dip=None):
     # print(np.array(x))
     if soft == False:
         if x.shape[1]==1:
-            if val_cnt.values <= min(min(x.shape[0]/30,50),x.shape[0]):
+            if val_cnt.values <= min(min(x.shape[0]/30,100),x.shape[0]):
                 clustering = _set_one_component(x) 
                 clustering['filter'] = 'filted'
                 clustering['dip'] = 0
@@ -591,7 +594,7 @@ def Clustering(x,merge_cutoff,max_k,bic,val_cnt,soft=False,dip=None):
                 return clustering
 
     if soft == True:
-        if x.shape[1]==1 and (val_cnt.values <= min(min(x.shape[0]/40,30),x.shape[0]) or dip<max((1-merge_cutoff)*0.004, 0.006)):
+        if x.shape[1]==1 and (val_cnt.values <= min(min(x.shape[0]/40,50),x.shape[0]) or dip<max((1-merge_cutoff)*0.004, 0.006)):
             # print(x.columns[0],'second filted')
             # clustering = _set_one_component(x) 
             # clustering['filter'] = 'filted'
@@ -601,7 +604,7 @@ def Clustering(x,merge_cutoff,max_k,bic,val_cnt,soft=False,dip=None):
     # if soft==False:
     # print(x.columns.values,x.shape[0]/30,val_cnt.values,dip)
     
-    if k_bic == 1 or (k_bic>5 and min(val_cnt.values)<300) :    
+    if k_bic == 1 or (k_bic>5 and min(val_cnt.values)<200):    
             # if only one component, set values
         if soft:
             return
@@ -670,7 +673,7 @@ def merge_bhat(x,bp_gmm,cutoff):
         max_pair = max(bhat_dic.items(), key=operator.itemgetter(1))[0]
         max_val = bhat_dic[max_pair]
 
-        if max_val > cutoff or (max_val<0.051 and len(x)<1000):
+        if max_val > cutoff or (max_val<0.049 and len(x)<1000):
             merged_i,merged_j = max_pair
             # update mergedtonumbers
             for idx,val in enumerate(mergedtonumbers):
