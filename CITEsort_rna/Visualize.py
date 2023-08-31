@@ -17,10 +17,13 @@ import scanpy as sc
 # from sklearn import preprocessing
 # from ReSplit import outlier_filter
 
+from sklearn.cross_decomposition import CCA
+from scipy.sparse import isspmatrix_csr
+
 #node = traversal.get_node(0)
 #nodename = traversal.nodename[0]
 
-def visualize_node(data,node,nodename,**plot_para):
+def visualize_node(data,node,nodename,embedding=None,**plot_para):
     
     #matplotlib.rcParams['figure.dpi'] = 200
 
@@ -35,15 +38,42 @@ def visualize_node(data,node,nodename,**plot_para):
     data = data[list(set(node.indices)&set(data.obs_names)),:]
     # data.X = preprocessing.scale(data.X)
 
-    sc.pp.filter_genes(data, min_cells=3)
-    sc.pp.scale(data, max_value=10, zero_center=True)
-    sc.tl.pca(data,n_comps=10)
-    node_data = pd.DataFrame(data=data.obsm['X_pca'], index=np.array(current_indices), columns=['PC'+str(i) for i in range(10)])
+    if True:
+        sc.pp.filter_genes(data, min_cells=3)
+        sc.pp.scale(data, max_value=10, zero_center=True)
+        sc.tl.pca(data,n_comps=10)
+        node_data = pd.DataFrame(data=data.obsm['X_pca'], index=np.array(current_indices), columns=['PC'+str(i) for i in range(10)])
+    else:
+        data_cc = np.array([[]]).reshape((data.shape[0],0))
+        prior_gene = {'exhausted': ['TOX'], 'TCM/TEM': ['CCR7'], 'Th17': ['KLRB1']}
+        for key in prior_gene.keys():
+            gene_list = set(list(prior_gene[key])) & set(list(data.var_names))
+            # print(prior_gene[key],data.var_names)
+            # print(list(gene_list),[i for i in range(len(data.obs_names)) if data.obs_names[i] in list(gene_list)])
+            if isspmatrix_csr(data.X):
+                y = data[:,list(gene_list)].X.toarray()
+                x = data[:,list(set(data.var_names)-set(gene_list))].X.toarray()
+                # y = data[:,[i for i in range(len(data.var_names)) if data.var_names[i] in list(gene_list)]].X.toarray()
+                # x = data[:,[i for i in range(len(data.var_names)) if data.var_names[i] in list(set(data.var_names)-set(gene_list))]].X.toarray()
+                # print(x.shape,y.shape)
+            else:
+                y = data[:,list(gene_list)].X
+                x = data[:,list(set(data.var_names)-set(gene_list))].X
+
+            cca = CCA(n_components=1)
+            cca.fit(x, y)
+            xc, yc = cca.transform(x, y)
+            
+            mtx = np.concatenate((xc,yc), axis=1)
+            # print(xc.shape,yc.shape,mtx.shape,data_cc.shape)
+            data_cc = np.concatenate((data_cc,mtx), axis=1)
+        data.obsm['X_cca'] = data_cc
+        data_cc = pd.DataFrame(data=data.obsm['X_cca'],index=data.obs_names,columns=['CC'+str(i/2)+'_'+str(i%2) for i in range(data.obsm['X_cca'].shape[1])])
     
     # node_data = pd.DataFrame(data=node_data, index=np.array(current_indices), columns=[(name[-3:],) for name in node.pc_loading.columns])
     # node_data = data.loc[current_indices,:]
     
-    plt.figure(figsize=(12,((node_data.shape[1]-1)//5+1)*2), dpi=70)
+    plt.figure(figsize=(12,((node_data.shape[1]-1)//5+1)*1), dpi=70)
     plt.style.use('seaborn-white')
     #ax.tick_params(axis='both', which='major', labelsize=10)
 
@@ -66,6 +96,7 @@ def visualize_node(data,node,nodename,**plot_para):
         # print('node_data.columns',node_data.columns)
 
         for i in range(len(markers)):
+            print(node_data.columns, markers[i])
             X = node_data.loc[:,markers[i]].values.reshape(-1, 1)
             
             plt.subplot( (len(markers)-1)//5+1,5,i+1)
@@ -139,6 +170,7 @@ def visualize_pair(data,node,nodename,**plot_para):
     savename = plot_para.get('savename','.')
     
     data = data[list(set(node.indices)&set(data.obs_names)),:]
+    
     sc.pp.filter_genes(data, min_cells=3)
     sc.pp.scale(data, max_value=10, zero_center=True)
     # data.X = preprocessing.scale(data.X)

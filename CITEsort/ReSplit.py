@@ -23,7 +23,8 @@ import copy
 #import pandas as pd
 import random
 import diptest
-
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+import scanpy as sc
 
 
 def all_BIC(leaf_dict, n_features):
@@ -77,6 +78,7 @@ def assign_GMM(sample, mean_list, cov_list, weight, if_log=False, marker_list=No
             pred_label = [pred_label[i] if p_post[i,pred_label[i]]>confidence_threshold/len(weight)*2  else -1 for i in range(len(pred_label)) ]
     # print(p_post[:10,:])
     # print(pred_label[:10])
+    # print(p_post[:5,:],pred_label[:5])
     pred_label = pd.Series(data=pred_label,index=index)    
     return pred_label
 
@@ -154,13 +156,13 @@ def value_count(data):
         val_cnt[col] = len(val)
     return val_cnt
 
-def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0,merge_cutoff=0.1,max_k=10,max_ndim=2,bic='bic',bic_stop=False,rawdata=None):
+def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0,merge_cutoff=0.1,max_k=10,max_ndim=2,bic='bic',bic_stop=False,rawdata=None,datarna=None):
     # leaf_dict only save index of current leaves, leaf_list save the sort of surrent leaves
     if leaf_list == None:
         data, rawdata = smooth(data)
         val_cnt = value_count(rawdata)
 
-        root=ReSplit(data,merge_cutoff,marker_set=[],val_cnt=val_cnt)
+        root=ReSplit(data,merge_cutoff,marker_set=[],val_cnt=val_cnt,datarna=datarna)
         leaf_dict = {0: root}
         root.ind = 0
         leaf_list = [root]
@@ -195,12 +197,14 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
             marker_set = list(set(max_root.marker + list(max_root.key)))
 
         left_counts = value_count(rawdata.loc[max_root.left_indices,:])
-        max_root.left = ReSplit(data.loc[max_root.left_indices,:], merge_cutoff, max_root.weight * max_root.w_l, max_k, max_ndim, bic, marker_set=marker_set, val_cnt=left_counts, parent_key=max_root.key)
+        max_root.left = ReSplit(data.loc[max_root.left_indices,:], merge_cutoff, max_root.weight * max_root.w_l, max_k, 
+                                max_ndim, bic, marker_set=marker_set, val_cnt=left_counts, parent_key=max_root.key, datarna=datarna)
         # max_root.left.ind = max(leaf_dict.keys()) + 1
         # leaf_dict[max_root.left.ind] = max_root.left
 
         right_counts = value_count(rawdata.loc[max_root.right_indices,:])
-        max_root.right = ReSplit(data.loc[max_root.right_indices,:], merge_cutoff, max_root.weight * max_root.w_r, max_k, max_ndim, bic, marker_set=marker_set, val_cnt=right_counts, parent_key=max_root.key)
+        max_root.right = ReSplit(data.loc[max_root.right_indices,:], merge_cutoff, max_root.weight * max_root.w_r, max_k, 
+                                max_ndim, bic, marker_set=marker_set, val_cnt=right_counts, parent_key=max_root.key, datarna=datarna)
         # max_root.right.ind = max(leaf_dict.keys()) + 1
         # leaf_dict[max_root.right.ind] = max_root.right
 
@@ -223,7 +227,7 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
         marker_list = list(set(marker_list))
 
         # print('marker_list:',marker_list)
-        new_label = assign_GMM(rawdata, mean_list, cov_list, w_list, marker_list=marker_list, if_log=False, confidence_threshold=0.8, throw=True)
+        new_label = assign_GMM(rawdata, mean_list, cov_list, w_list, marker_list=marker_list, if_log=True, confidence_threshold=0.85, throw=True)
 
         for i in range(len(leaf_list)):
             node = leaf_list[i]
@@ -251,26 +255,26 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
         # bic_list.append(bic_score)
         
         # if bic_stop == False:
-        _, bic_list, bic_min_node = Choose_leaf(leaf_dict=leaf_dict, data=data, bic_list=bic_list, leaf_list=leaf_list, n_features=n_features, rawdata=rawdata,merge_cutoff=merge_cutoff)
+        _, bic_list, bic_min_node = Choose_leaf(leaf_dict=leaf_dict, data=data, bic_list=bic_list, leaf_list=leaf_list, n_features=n_features, rawdata=rawdata,merge_cutoff=merge_cutoff,datarna=datarna)
         # if bic_score <= min(bic_list):
         #     bic_min_node = leaf_list
-    # else:
-    #     marker_list = [node.marker[i] for node in leaf_list for i in range(len(node.marker))]
-    #     mean_list = [node.mean for node in leaf_list] 
-    #     cov_list = [node.cov for node in leaf_list]
-    #     w_list = [node.weight for node in leaf_list] 
-    #     marker_list = list(set(marker_list))
+    else:
+        marker_list = [node.marker[i] for node in leaf_list for i in range(len(node.marker))]
+        mean_list = [node.mean for node in leaf_list] 
+        cov_list = [node.cov for node in leaf_list]
+        w_list = [node.weight for node in leaf_list] 
+        marker_list = list(set(marker_list))
         
-    #     new_label = assign_GMM(rawdata, mean_list, cov_list, w_list, marker_list=marker_list, if_log=True, confidence_threshold=0, throw=False)
-    #     for i in range(len(leaf_list)):
-    #         node = leaf_list[i]
-    #         sub_data = data[new_label==i]
-    #         node.indices = sub_data.index.tolist()
+        new_label = assign_GMM(rawdata, mean_list, cov_list, w_list, marker_list=marker_list, if_log=True, confidence_threshold=0, throw=False)
+        for i in range(len(leaf_list)):
+            node = leaf_list[i]
+            sub_data = data[new_label==i]
+            node.indices = sub_data.index.tolist()
         # Final assignment
     return max_root, bic_list, bic_min_node
 
 
-def ReSplit(data=None,merge_cutoff=0.1,weight=1,max_k=10,max_ndim=2,bic='bic',marker_set=None, root=None, val_cnt=None, parent_key=set()):
+def ReSplit(data=None,merge_cutoff=0.1,weight=1,max_k=10,max_ndim=2,bic='bic',marker_set=None, root=None, val_cnt=None, parent_key=set(), datarna=None):
 
     if root == None:
         root = BTree(('leaf',))
@@ -290,7 +294,7 @@ def ReSplit(data=None,merge_cutoff=0.1,weight=1,max_k=10,max_ndim=2,bic='bic',ma
     #if len(root.indices) < 500:
     #    print(root.indices)
 
-    if data.shape[0] < 50:        
+    if data.shape[0] < 300:        
         root.all_clustering_dic = _set_small_leaf(data)
         root.stop = 'small size'
         return root
@@ -310,15 +314,15 @@ def ReSplit(data=None,merge_cutoff=0.1,weight=1,max_k=10,max_ndim=2,bic='bic',ma
  
 
     idx_best = np.argmax(scores_ll)
-    root.score_dict = dict(zip(separable_features, scores_ll))
+    
 
 
     #idx_best = np.argmax(scores_ent)
     best_feature = separable_features[idx_best]
     best_partition = bipartitions[best_feature]
     best_score = scores_ll[idx_best]
-    if sum(best_partition)<30 or sum(~best_partition)<30:
-        root.stop = 'partition small size'
+    # if sum(best_partition)<30 or sum(~best_partition)<30:
+    #     root.stop = 'partition small size'
     #best_weights = all_clustering_dic[len(best_feature)][best_feature]['weight']
 
     ## construct current node  
@@ -332,14 +336,52 @@ def ReSplit(data=None,merge_cutoff=0.1,weight=1,max_k=10,max_ndim=2,bic='bic',ma
         root.stop = 'spliting increases ll'
         print(best_feature, 'spliting increases ll', best_score, sum(best_partition),sum(~best_partition))
         return root
+    
+    if len(datarna) > 0:
+        classifier = False
+    else:
+        classifier = True
+    
+    while(scores_ll[idx_best]>-100 or classifier):
+        if len(datarna) < 1000 or len(separable_features) <= 1:
+            classifier = True
+            break
+        # print(scores_ll)
+        if sum(best_partition)<30 or sum(~best_partition)<30:
+            scores_ll[idx_best] = -200  # -200 means 'partition small size'
+            idx_best = np.argmax(scores_ll)
+            continue
+        # print(datarna.obs_names[:10])
+        print(separable_features[idx_best])
+        classifier, overlap = LDA_test(datarna[root.indices,:].copy(), best_partition)
+        if classifier == False:
+            scores_ll[idx_best] = -100-overlap
+        else:
+            best_feature = separable_features[idx_best]
+            break
 
-    root.key = best_feature
+        idx_best = np.argmax(scores_ll)
+        best_feature = separable_features[idx_best]
+        best_partition = bipartitions[best_feature]
+        best_score = scores_ll[idx_best]
+    
+    
+
+    
     root.all_clustering_dic = all_clustering_dic
     if all_clustering_dic==None:
         print('=====clustering=====')
     root.score_ll = best_score
+    root.score_dict = dict(zip(separable_features, scores_ll))
 
+    # if classifier == False and len(datarna)>0:
+    #     root.stop = 'rna classifier not avalaible'
+    #     return root
 
+    if classifier and (sum(best_partition)<30 or sum(~best_partition)<30):
+        root.stop = 'partition small size'
+        return root
+    root.key = best_feature
     
     ### Calculate mean, std and weight for all dimension
     p1_mean = data.loc[best_partition, :].mean()
@@ -393,8 +435,10 @@ def HiScanFeatures(data,root,merge_cutoff,max_k,max_ndim,bic,parent_key={}):
     # Try to separate on one dimension
 
     # print(parent_key)
-    key_marker = ['TIGIT','PD-1','CD25']
-    # key_marker = ['CD16','CD62P','CD4-2', 'CD3-2','CD3-1', 'CD19', 'CD4-1', 'CD8', 'CD27', 'CD14', 'CLEC12A', 'CD16', 'CD45RA', 'CD127', 'CD45RO','CD25',  'CD56-1']
+    # key_marker = ['TIGIT','PD-1','CD25']
+    # key_marker = ['CD16','CD4-2', 'CD3-2','CD3-1', 'CD19', 'CD4-1', 'CD8', 'CD27', 'CD14', 'CLEC12A', 'CD16', 'CD45RA', 'CD127', 'CD45RO','CD25',  'CD56-1']
+    key_marker = ['CD4-2', 'CD3-2','CD3-1', 'CD19', 'CD4-1', 'CD8', 'CD27', 'CD14', 'CLEC12A', 'CD45RA', 'CD127']
+    # key_marker = ['CD14', 'CD45RA', 'CD127', 'CD45RO', 'CD25',  'CD56-1','CD56-2','CD16','CD27']
     # key_marker = ['CD4', 'CD3', 'CD19', 'CD8a', 'CD27', 'CD14', 'CD16', 'CD45RA', 'CD127-IL7Ra', 'CD45RO', 'CD69','CD25']
     separable_features, bipartitions, scores, bic_list, all_clustering_dic, rescan = Scan(data,root,merge_cutoff,max_k,max_ndim,bic,parent_key,key_marker)
 
@@ -418,7 +462,7 @@ def Scan(data,root,merge_cutoff,max_k,max_ndim,bic,parent_key={},scanfeatures=[]
         for item in all_clustering_dic[ndim]:
             val = all_clustering_dic[ndim][item]['similarity_stopped']
             ### 考虑阈值是否应该随着用户指定调整
-            if val > merge_cutoff and val < min(merge_cutoff*3,0.8):
+            if val > merge_cutoff and val < min(merge_cutoff*2,0.8):
                 rescan_features.append(item[0])
         
         for ndim in range(2,max_ndim+1):
@@ -432,7 +476,7 @@ def Scan(data,root,merge_cutoff,max_k,max_ndim,bic,parent_key={},scanfeatures=[]
             
             ### threshold=0.5 or merge_cutoff?
             rescan_features = list(set(rescan_features))
-            separable_features, bipartitions, scores,bic_list, all_clustering_dic[ndim] = ScoreFeatures(data,root,min(merge_cutoff*2,0.8),max_k,ndim,bic,rescan_features)
+            separable_features, bipartitions, scores,bic_list, all_clustering_dic[ndim] = ScoreFeatures(data,root,min(merge_cutoff*1.2,0.8),max_k,ndim,bic,rescan_features)
             if len(separable_features) >= 1:
                 break
     return separable_features, bipartitions, scores, bic_list, all_clustering_dic, rescan
@@ -509,7 +553,7 @@ def ScoreFeatures(data,root,merge_cutoff,max_k,ndim,bic,rescan_features=None,sep
                 # print('marker_list:',marker_list)
 
                 # print('sum(assignment):',sum(assignment),'len(assignment)',len(assignment))
-                if sum(assignment) < 30 or sum(~assignment) < 30:
+                if sum(assignment) < 100 or sum(~assignment) < 100:
                     ll_gain.append(-1000)
                     continue
                 gmm1 = GaussianMixture(1,covariance_type='full')
@@ -618,6 +662,39 @@ def Clustering(x,merge_cutoff,max_k,bic,val_cnt,soft=False,dip=None):
     clustering['dip'] = dip
     
     return clustering
+
+
+def LDA_test(adata_sub, bestpartition):
+    # adata_sub = adata[node.indices,:].copy()
+    sc.pp.filter_genes(adata_sub, min_cells=3)
+    sc.pp.normalize_total(adata_sub, target_sum=1e4)
+    sc.pp.log1p(adata_sub)
+    adata_sub.obs['node_split'] = pd.Series(dtype='object')
+    adata_sub.obs['node_split'].loc[bestpartition] = str(0)
+    adata_sub.obs['node_split'].loc[~bestpartition] = str(1)
+    sc.tl.rank_genes_groups(adata_sub, groupby='node_split', method='t-test', n_genes=4000)
+    if len(adata_sub) > 500 and len(adata_sub)<5000:
+        ngenes = 200
+    else:
+        ngenes = 1000
+    DE_genes = pd.DataFrame(adata_sub.uns['rank_genes_groups']['names'][:ngenes])
+    genes = list(set(list(DE_genes.loc[:,'0'])+list(DE_genes.loc[:,'1'])))
+    clf = LinearDiscriminantAnalysis()
+    rna_new = clf.fit_transform(adata_sub[adata_sub.obs['node_split'].isin(['0','1']),genes].X.toarray(), adata_sub[adata_sub.obs['node_split'].isin(['0','1']),:].obs['node_split'])
+    rna_new = pd.DataFrame(rna_new, index=adata_sub.obs_names)
+
+    overlap = bhattacharyya_dist(rna_new.loc[bestpartition,:].mean(), rna_new.loc[~bestpartition,:].mean(),
+                                 rna_new.loc[bestpartition,:].cov(),rna_new.loc[~bestpartition,:].cov())
+    print(np.exp(-overlap))
+    if len(adata_sub)>10000:
+        cutoff = 0.02
+    else:
+        cutoff = 0.05 * (2-len(adata_sub)/10000)
+    overlap = np.exp(-overlap)
+    if overlap < cutoff:
+        return True, overlap
+    else:
+        return False, overlap
 
 
 

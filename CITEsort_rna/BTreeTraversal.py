@@ -140,7 +140,7 @@ class BTreeTraversal:
         if viz_dim == 1:
             visualize_node(data, node = self.nodelist[nodeID], nodename = self.nodename[nodeID], **plot_para)
         if viz_dim == 2:
-            visualize_pair(data, node = self.nodelist[nodeID], nodename = self.nodename[nodeID], **plot_para)
+            visualize_pair(data, node = self.nodelist[nodeID], nodename = self.nodename[nodeID],  **plot_para)
     
 
     def plot_node_umap(self, data, nodeID):

@@ -52,6 +52,11 @@ def main():
         adata = pd.read_csv(data_path,sep=',',index_col=0).T
         adata = sc.Anndata(adata)
         print(adata.shape, adata.obs_names[0], adata.var_names[0])
+    # prior_gene = dict({'exhausted':['TOX','TOX2','LAG3','BTLA','CBLB','ITCH','NEDD4'],
+    # 'TCM/TEM':['CCR7','CD44','IL7R','IL15RA','MBD2'],'Th17':['KLRB1','IL23R','CCR6','IL1R1','STAT3']})
+    prior_gene = {}
+    print('prior gene:',prior_gene)
+    adata.var_names_make_unique()
     if adt_output != None:
         f = open(adt_output+'tree.pickle','rb')
         tree = pickle.load(f)
@@ -60,7 +65,9 @@ def main():
         md = MetaDIMM()
         # adata_sub = md.filter(adata_sub)
         adata_sub = md.preprocess(adata_sub, normalize=True, log1p=True, hvg=False, scale=False)
-        tree = dfs(tree, adata_sub, merge_cutoff)
+        outind = adata_sub[adata_sub.obs['label_l2'].isin(['Doublet','Eryth'])].obs_names
+        adata_sub = adata_sub[list(set(adata_sub.obs_names)-set(outind)),:]
+        tree = dfs(tree, adata_sub, merge_cutoff, prior_gene)
     else:
         # ct_list = ['CD4 Naive','CD8 Naive','CD14 Mono']
         # adata = adata[adata.obs['label_l2'].isin(ct_list),:]
@@ -71,7 +78,7 @@ def main():
         adata = md.preprocess(adata, normalize=True, log1p=True, hvg=False, scale=False)
         # sc.pp.scale(adata, max_value=10)
         # sc.tl.pca(adata,n_comps=10)
-        tree, bic_list, min_bic_node = Choose_leaf(data=adata,merge_cutoff=merge_cutoff,use_parent=True)
+        tree, bic_list, min_bic_node = Choose_leaf(data=adata,prior_gene=prior_gene,merge_cutoff=merge_cutoff,use_parent=True)
         # adata.write_h5ad(output_path+'/adata_pp.h5ad')        
         # tree = ReSplit(adata,data_raw=adata_raw)
         # tree = ReSplit(data,merge_cutoff)
@@ -98,7 +105,7 @@ def main():
     # plt.plot(list(range(len(bic_list))), bic_list)
     # plt.savefig('BIC_as_split.png')
 
-def dfs(node, adata, merge_cutoff):
+def dfs(node, adata, merge_cutoff, prior_gene):
     if node.key == ('leaf',):
         adata_sub = adata[list(set(node.indices)&set(adata.obs_names)),:]
         print(adata_sub.shape)
@@ -106,11 +113,11 @@ def dfs(node, adata, merge_cutoff):
         # sc.pp.scale(adata_sub, max_value=10)
         # sc.tl.pca(adata_sub, n_comps=10)
         # node.stop = None
-        node, bic_list, min_bic_node = Choose_leaf(data=adata_sub,merge_cutoff=merge_cutoff,use_parent=True) 
+        node, bic_list, min_bic_node = Choose_leaf(data=adata_sub,prior_gene=prior_gene,merge_cutoff=merge_cutoff,use_parent=True) 
         return node       
     else:
-        node.left = dfs(node.left, adata, merge_cutoff)
-        node.right = dfs(node.right, adata, merge_cutoff)
+        node.left = dfs(node.left, adata, merge_cutoff, prior_gene)
+        node.right = dfs(node.right, adata, merge_cutoff, prior_gene)
         return node
 
 if __name__ == "__main__":

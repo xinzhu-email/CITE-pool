@@ -17,6 +17,7 @@ import os
 import time
 import matplotlib.pyplot as plt
 import warnings
+import scanpy as sc
 warnings.filterwarnings("ignore")
 
 #from sys import argv
@@ -29,6 +30,7 @@ def main():
     parser.add_argument('-oldtree',default=None, help="The path of ADT clustering result, if none, consider no groups")
     parser.add_argument('-o', '--output', type=str, default='./CITEsort_out',help='Path to save output files.')
     parser.add_argument('--compact', action='store_true', default=False, help='Output a compact tree.')
+    parser.add_argument('-rna_path', default=[], help = "The input path of RNA data in .h5ad files.")
     args = parser.parse_args()
     
     data_path = args.data_path
@@ -36,6 +38,7 @@ def main():
     oldtree = args.oldtree
     merge_cutoff = args.cutoff
     compact_flag = args.compact
+    rna_path = args.rna_path
     
     if not os.path.exists(output_path):
         os.mkdir(output_path)
@@ -44,15 +47,20 @@ def main():
     print('read data and run CITE-sort.')
     data = pd.read_csv(data_path,header = 0, index_col=0)
     data.index = data.index.astype(str)
+    if len(rna_path) != 0 :
+        data_rna = sc.read_h5ad(rna_path)
+        data_rna.var_names_make_unique()
+    else:
+        data_rna = []
     if oldtree != None:
         f = open(oldtree+'tree.pickle','rb')
         tree = pickle.load(f)
         f.close()
         data_sub = data.loc[list(set(tree.indices)&set(data.index)),:]
-        tree = dfs(tree, data_sub, merge_cutoff)
+        tree = dfs(tree, data_sub, merge_cutoff, data_rna)
 
     else:
-        tree, bic_list, min_bic_node = Choose_leaf(data=data,merge_cutoff=merge_cutoff,rawdata=data.copy())
+        tree, bic_list, min_bic_node = Choose_leaf(data=data,merge_cutoff=merge_cutoff,rawdata=data.copy(),datarna=data_rna)
     # tree = ReSplit(data,merge_cutoff)
     #tree = Matryoshka(data,merge_cutoff)
     print('done.\nplot tree.')
@@ -76,19 +84,20 @@ def main():
     # plt.plot(list(range(len(bic_list))), bic_list)
     # plt.savefig('BIC_as_split.png')
 
-def dfs(node, data, merge_cutoff):
+def dfs(node, data, merge_cutoff,data_rna=None):
     if node.key == ('leaf',):
-        data_sub = data.loc[list(set(node.indices)&set(data.index)),:]
+        indices = list(set(node.indices)&set(data.index))
+        data_sub = data.loc[indices,:]
         print(data_sub.shape)
         # print(len(node.indices),adata_sub.X.shape)
         # sc.pp.scale(adata_sub, max_value=10)
         # sc.tl.pca(adata_sub, n_comps=10)
         # node.stop = None
-        node, bic_list, min_bic_node = Choose_leaf(data=data_sub,merge_cutoff=merge_cutoff, rawdata=data_sub.copy()) 
+        node, bic_list, min_bic_node = Choose_leaf(data=data_sub,merge_cutoff=merge_cutoff, rawdata=data_sub.copy(),datarna=data_rna[indices,:].copy()) 
         return node     
     else:
-        node.left = dfs(node.left, data, merge_cutoff)
-        node.right = dfs(node.right, data, merge_cutoff)
+        node.left = dfs(node.left, data, merge_cutoff, data_rna)
+        node.right = dfs(node.right, data, merge_cutoff, data_rna)
         return node
 
 if __name__ == "__main__":
