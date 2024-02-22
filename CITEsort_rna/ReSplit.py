@@ -209,9 +209,6 @@ def pp_cca(prior_gene,data=None,merge_cutoff=0.1,weight=1,max_k=5,max_ndim=2,bic
             if isspmatrix_csr(data.X):
                 y = data[:,list(gene_list)].X.toarray()
                 x = data[:,list(set(data.var_names)-set(gene_list))].X.toarray()
-                # y = data[:,[i for i in range(len(data.var_names)) if data.var_names[i] in list(gene_list)]].X.toarray()
-                # x = data[:,[i for i in range(len(data.var_names)) if data.var_names[i] in list(set(data.var_names)-set(gene_list))]].X.toarray()
-                # print(x.shape,y.shape)
             else:
                 y = data[:,list(gene_list)].X
                 x = data[:,list(set(data.var_names)-set(gene_list))].X

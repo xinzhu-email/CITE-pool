@@ -65,8 +65,8 @@ def main():
         md = MetaDIMM()
         # adata_sub = md.filter(adata_sub)
         adata_sub = md.preprocess(adata_sub, normalize=True, log1p=True, hvg=False, scale=False)
-        outind = adata_sub[adata_sub.obs['label_l2'].isin(['Doublet','Eryth'])].obs_names
-        adata_sub = adata_sub[list(set(adata_sub.obs_names)-set(outind)),:]
+        # outind = adata_sub[adata_sub.obs['label_l2'].isin(['Doublet','Eryth'])].obs_names
+        # adata_sub = adata_sub[list(set(adata_sub.obs_names)-set(outind)),:]
         tree = dfs(tree, adata_sub, merge_cutoff, prior_gene)
     else:
         # ct_list = ['CD4 Naive','CD8 Naive','CD14 Mono']

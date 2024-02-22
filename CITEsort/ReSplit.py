@@ -258,18 +258,18 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
         _, bic_list, bic_min_node = Choose_leaf(leaf_dict=leaf_dict, data=data, bic_list=bic_list, leaf_list=leaf_list, n_features=n_features, rawdata=rawdata,merge_cutoff=merge_cutoff,datarna=datarna)
         # if bic_score <= min(bic_list):
         #     bic_min_node = leaf_list
-    else:
-        marker_list = [node.marker[i] for node in leaf_list for i in range(len(node.marker))]
-        mean_list = [node.mean for node in leaf_list] 
-        cov_list = [node.cov for node in leaf_list]
-        w_list = [node.weight for node in leaf_list] 
-        marker_list = list(set(marker_list))
+    # else:
+    #     marker_list = [node.marker[i] for node in leaf_list for i in range(len(node.marker))]
+    #     mean_list = [node.mean for node in leaf_list] 
+    #     cov_list = [node.cov for node in leaf_list]
+    #     w_list = [node.weight for node in leaf_list] 
+    #     marker_list = list(set(marker_list))
         
-        new_label = assign_GMM(rawdata, mean_list, cov_list, w_list, marker_list=marker_list, if_log=True, confidence_threshold=0, throw=False)
-        for i in range(len(leaf_list)):
-            node = leaf_list[i]
-            sub_data = data[new_label==i]
-            node.indices = sub_data.index.tolist()
+    #     new_label = assign_GMM(rawdata, mean_list, cov_list, w_list, marker_list=marker_list, if_log=True, confidence_threshold=0, throw=False)
+    #     for i in range(len(leaf_list)):
+    #         node = leaf_list[i]
+    #         sub_data = data[new_label==i]
+    #         node.indices = sub_data.index.tolist()
         # Final assignment
     return max_root, bic_list, bic_min_node
 
@@ -437,8 +437,9 @@ def HiScanFeatures(data,root,merge_cutoff,max_k,max_ndim,bic,parent_key={}):
     # print(parent_key)
     # key_marker = ['TIGIT','PD-1','CD25']
     # key_marker = ['CD16','CD4-2', 'CD3-2','CD3-1', 'CD19', 'CD4-1', 'CD8', 'CD27', 'CD14', 'CLEC12A', 'CD16', 'CD45RA', 'CD127', 'CD45RO','CD25',  'CD56-1']
-    key_marker = ['CD4-2', 'CD3-2','CD3-1', 'CD19', 'CD4-1', 'CD8', 'CD27', 'CD14', 'CLEC12A', 'CD45RA', 'CD127']
-    # key_marker = ['CD14', 'CD45RA', 'CD127', 'CD45RO', 'CD25',  'CD56-1','CD56-2','CD16','CD27']
+    # key_marker = ['CD4-2', 'CD3-2','CD3-1', 'CD19', 'CD4-1', 'CD8', 'CD27', 'CD14', 'CLEC12A', 'CD45RA']
+    # key_marker = ['CD14', 'CD45RA', 'CD127', 'CD45RO', 'CD25','CD16','CD27']
+    key_marker = ['CD194']#'CD185','CD196','CCR10',
     # key_marker = ['CD4', 'CD3', 'CD19', 'CD8a', 'CD27', 'CD14', 'CD16', 'CD45RA', 'CD127-IL7Ra', 'CD45RO', 'CD69','CD25']
     separable_features, bipartitions, scores, bic_list, all_clustering_dic, rescan = Scan(data,root,merge_cutoff,max_k,max_ndim,bic,parent_key,key_marker)
 
@@ -648,7 +649,7 @@ def Clustering(x,merge_cutoff,max_k,bic,val_cnt,soft=False,dip=None):
     # if soft==False:
     # print(x.columns.values,x.shape[0]/30,val_cnt.values,dip)
     
-    if k_bic == 1 or (k_bic>5 and min(val_cnt.values)<200):    
+    if k_bic == 1 or k_bic>8 or (k_bic>5 and min(val_cnt.values)<100):    
             # if only one component, set values
         if soft:
             return

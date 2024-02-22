@@ -6,7 +6,7 @@ Created on Sun Aug 18 20:26:57 2019
 @author: lqyair
 """
 import sys
-sys.path.append("./CITEsort_rna")
+sys.path.append("./Classifier")
 
 import pandas as pd
 import numpy as np
