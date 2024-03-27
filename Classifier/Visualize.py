@@ -27,11 +27,17 @@ def visualize_node(data,node,nodename,**plot_para):
     savepath = plot_para.get('savepath','.')
     savename = plot_para.get('savename','.')
     
-    current_indices = node.indices
-    try:
-        node_data = node.embedding.iloc[:,:]
-    except:
+    current_indices = list(set(node.indices)&set(data.index)) 
+    # current_indices =list(set(current_indices)&set(node.embedding.index))
+    # # print(current_indices)
+    # node_data = node.embedding.loc[current_indices,:]
+    if len(node.embedding) != 0:
+        current_indices = list(set(current_indices)&set(node.embedding.index))
+        # print(current_indices)
+        node_data = node.embedding.loc[current_indices,:]
+    else:
         node_data = data.loc[current_indices,:]
+
     node_data['artificial'] = 0
     if node.key == ('artificial',):
         print('artificial')
@@ -127,6 +133,20 @@ def visualize_pair(data,node,nodename,**plot_para):
     all_clustering = node.all_clustering_dic[2]
     marker_pairs = list(all_clustering.keys())
     current_indices = node.indices 
+    
+
+    if len(node.embedding) != 0:
+        current_indices =node.embedding.index
+        # print(current_indices)
+        data = node.embedding.loc[current_indices,:]
+    else:
+        data = data.loc[current_indices,:]
+    data['artificial'] = 0
+    # print(data)
+    if node.key == ('artificial',):
+        print('artificial')
+        data['artificial'] = node.artificial_w
+        node.all_clustering_dic = {1:node.artificial_w}
 
     plt.figure(figsize=(12,((len(marker_pairs)-1)//5+1)*2.5), dpi=96)
     sns.set_style("white")
@@ -142,7 +162,8 @@ def visualize_pair(data,node,nodename,**plot_para):
         
         mp_ncluster = all_clustering[marker_pairs[i]]['mp_ncluster']
         bp_ncluster = all_clustering[marker_pairs[i]]['bp_ncluster']
-    
+
+        # print(node.embedding.index.value_counts())
         data_pair = pd.DataFrame({marker1:X1,marker2:X2,
                               'bp':bp_clustering,
                               'mp':mp_clustering},index=current_indices)

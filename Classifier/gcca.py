@@ -43,10 +43,11 @@ class GCCA:
         return eig_vecs
 
 
-    def solve_eigprob(self, left, right):
+    def solve_eigprob(self, left, right, ncomp):
 
         # self.logger.info("calculating eigen dimension")
         eig_dim = min([np.linalg.matrix_rank(left), np.linalg.matrix_rank(right)])
+        eig_dim = min(eig_dim, ncomp)
 
         # self.logger.info("calculating eigenvalues & eigenvector")
         eig_vals, eig_vecs = eig(left, right)
@@ -89,7 +90,7 @@ class GCCA:
     def fit(self, x_list):
 
         # data size check
-        x_list = x_list.values()
+        # x_list = x_list.values()
         data_num = len(x_list)
         self.logger.info("data num is %d", data_num)
         # for i, x in enumerate(x_list):
@@ -97,8 +98,10 @@ class GCCA:
         i=0
         for x in x_list:
             # x = x_list[i]
-            self.logger.info("data shape x_%d: %s", i, x.shape)
+            # print(x)
             i += 1
+            self.logger.info("data shape x_%d: %s", i, x.shape)
+            
 
         # self.logger.info("normalizing")
         x_norm_list = [ self.normalize(x) for x in x_list]
@@ -124,7 +127,7 @@ class GCCA:
 
         # calc GEV
         self.logger.info("solving")
-        eigvals, eigvecs = self.solve_eigprob(left, right)
+        eigvals, eigvecs = self.solve_eigprob(left, right, self.n_components)
 
         h_list = [eigvecs[start:end] for start, end in zip(d_list[0:-1], d_list[1:])]
         h_list_norm = [self.eigvec_normalization(h, cov_mat[i][i]) for i, h in enumerate(h_list)]
@@ -135,13 +138,15 @@ class GCCA:
         self.h_list = h_list_norm
         self.eigvals = eigvals
 
-    def transform(self, *x_list):
+    def transform(self, x_list):
 
         # data size check
         data_num = len(x_list)
         # self.logger.info("data num is %d", data_num)
-        for i, x in enumerate(x_list):
-            self.logger.info("data shape x_%d: %s", i, x.shape)
+        # i = 0
+        # for  x in x_list:
+        #     i = i + 1
+        #     self.logger.info("data shape x_%d: %s", i, x.shape)
 
         if self.data_num != data_num:
             raise Exception('data num when fitting is different from data num to be transformed')
@@ -157,6 +162,7 @@ class GCCA:
         return z_list
 
     def fit_transform(self, *x_list):
+        print(x_list)
         self.fit(x_list)
         self.transform(x_list)
 
