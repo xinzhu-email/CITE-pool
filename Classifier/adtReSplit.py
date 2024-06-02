@@ -130,11 +130,14 @@ def update_param(node, alldata, indices, merge_cutoff=0.1,max_k=10,max_ndim=2,bi
 
 def smooth(x,item=0,num=6):
     if x.columns[0][:2]!='CC':
-        if x.iloc[0,:].any() < 0 :
+        if x.min().min() < 0 :
         # i = [i for i in item][0]
-        # print(i,value[:5])
         # print(value[0],value[1])
-            x = x.apply(np.expm1)
+            x = x.apply(np.exp)
+            # print('<0')
+            # for i in x.columns:
+            #     x.loc[:,i] += np.random.normal(loc=0, scale=1,size=x.shape[0]) * 0.01
+            # return x
         else:
             rawdata = np.apply_along_axis(lambda x: np.log(x+1) - np.mean(np.log(x+1)),0,x)
             rawdata = pd.DataFrame(rawdata, index=x.index, columns=x.columns)
@@ -163,7 +166,7 @@ def value_count(data):
     return val_cnt
 
 
-def GenModelNode(crossnode, best_feature, artificial_w, score_dict, loss=0):
+def GenModelNode(crossnode, best_feature, artificial_w, score_dict, outputmean=[0,0], loss=0):
     modelnode = BTree(best_feature)
     leftm, rightm, cellnum, trainnum, traindataset = 0, 0, 0, 0, []
 
@@ -198,6 +201,7 @@ def GenModelNode(crossnode, best_feature, artificial_w, score_dict, loss=0):
     modelnode.val_cnt = cellnum
     modelnode.artificial_w = artificial_w
     modelnode.loss = loss
+    modelnode.embedding = outputmean
 
     crossnode.modelnode = modelnode
     return crossnode
@@ -326,7 +330,7 @@ def Choose_leaf(leaf_dict=None,data=None,bic_list=[],leaf_list=None,n_features=0
 def outlier_filter(data):
 
     iqr = data.quantile([0.25,0.5,0.75])
-    iqr.loc['iqr',:] = (iqr.loc[0.75,:] - iqr.loc[0.25,:])*2
+    iqr.loc['iqr',:] = (iqr.loc[0.75,:] - iqr.loc[0.25,:])*3
     iqr.loc['min',:] = iqr.loc[0.25,:]-iqr.loc['iqr',:]
     iqr.loc['max',:] = iqr.loc[0.75,:]+iqr.loc['iqr',:]
     index = set(data.index)
@@ -338,9 +342,9 @@ def outlier_filter(data):
         if xmax-xmin < 3*iqr.loc['iqr',col]:
             continue
         index = index & set(data[data.loc[:,col]<iqr.loc['max',col]].index) & set(data[data.loc[:,col]>iqr.loc['min',col]].index)
-        # if len(data)-len(index) > 30 or len(index)<50:
-        #     index = set(data.index) - set(data[col].iloc[[np.argmax(list(data.loc[:,col])),np.argmin(list(data.loc[:,col]))]].index)
-        #     break  
+        if len(data)-len(index) > 30 or len(index)<50:
+            index = set(data.index) - set(data[col].iloc[[np.argmax(list(data.loc[:,col])),np.argmin(list(data.loc[:,col]))]].index)
+            break  
     return list(index), flag
 
 def retrain(nodelist, rnadata, genes):##gene?
@@ -358,54 +362,50 @@ def retrain(nodelist, rnadata, genes):##gene?
     del(traindata)
     w = pd.Series(w.detach().numpy().reshape(-1), index=genes)
 
-    return w
+    return w,[m0,m1],loss
 
 
-def gm_proba(node, data={}):
+def gm_proba(node, data={}, filter=False):
     # print(node.key)
-    if node.key == ('artificial',):
+    if node.key == ('artificial',) or len(node.artificial_w)==len(data):
         data = node.artificial_w
     elif node.key[0][:2] =='CC':
         data = node.embedding.loc[:,node.key]
     else:
         data = data.loc[:,node.key]
-    # print(len(node.left_indices),len(node.right_indices))
-    # print('data',data)
-    # if node.mean_l is None:
-    #     node.mean_l = data.loc[node.left_indices,:].mean()
-    #     node.mean_r = data.loc[node.right_indices,:].mean()
-        # node.cov_l = data.loc[node.left_indices,:].std()
-        # node.cov_r = data.loc[node.right_indices,:].
-    # node.left.mean.loc[node.key]
-    # node.left.cov.loc[node.key,node.key]
-    # gm1 = GaussianMixture(1,covariance_type='full').fit(data.loc[node.left_indices,:])
-    # gm2 = GaussianMixture(1,covariance_type='full').fit(data.loc[node.right_indices,:])
-    # node.left.proba = gm1.predict_proba(data.loc[node.left_indices,:])
-    # node.right.proba = gm2.predict_proba(data.loc[node.right_indices,:])
-    # node.left.proba = gm1.score_samples(data.loc[node.left_indices,:])
-    # node.right.proba = gm2.score_samples(data.loc[node.right_indices,:])
-    meanl, meanr = data.loc[node.left_indices,:].mean(axis=0), data.loc[node.right_indices,:].mean(axis=0)
-    covl, covr = data.loc[node.left_indices,:].cov(), data.loc[node.right_indices,:].cov()
-    p00 = multivariate_normal.pdf(data.loc[node.left_indices,:], meanl, covl)
-    p11 = multivariate_normal.pdf(data.loc[node.right_indices,:], meanr, covr)
-    p01 = multivariate_normal.pdf(data.loc[node.left_indices,:], meanr, covr)
-    p10 = multivariate_normal.pdf(data.loc[node.right_indices,:], meanl, covl)
-    w = len(node.left_indices)/(len(node.right_indices) + len(node.left_indices))
-    node.left.proba = w*p00/(w*p00 + (1-w)*p01)
-    node.right.proba = (1-w)*p11/(w*p10 + (1-w)*p11)
-    # node.left.proba = multivariate_normal.pdf(data.loc[node.left_indices,:], data.loc[node.left_indices,:].mean(axis=0), data.loc[node.left_indices,:].cov())
-    # node.right.proba = multivariate_normal.pdf(data.loc[node.right_indices,:], data.loc[node.right_indices,:].mean(axis=0),data.loc[node.right_indices,:].cov())
-    # if len(node.key) == 1:
-    #     node.left.proba = norm.pdf(data.loc[node.left_indices,:],node.mean_l.loc[node.key],data.loc[node.left_indices,:].std())
-    #     node.right.proba = norm.pdf(data.loc[node.right_indices,:],node.mean_r.loc[node.key],data.loc[node.right_indices,:].std())
-    # else:
-    #     print(node.mean_l.loc,node.cov_l)
-    #     node.left.proba = multivariate_normal.pdf(data.loc[node.left_indices,:], node.mean_l, node.cov_l)
-    #     node.right.proba = multivariate_normal.pdf(data.loc[node.right_indices,:], node.mean_r, node.cov_r)
-    # print('proba',node.left.proba)
+        data = smooth(data.copy())
+        
+    lind, rind = pd.Index(node.left_indices).intersection(data.index), pd.Index(node.right_indices).intersection(data.index)
+    meanl, meanr = data.loc[lind,:].mean(axis=0), data.loc[rind,:].mean(axis=0)
+    covl, covr = data.loc[lind,:].cov(), data.loc[rind,:].cov()
+    p00 = multivariate_normal.pdf(data.loc[lind,:], meanl, covl)
+    p11 = multivariate_normal.pdf(data.loc[rind,:], meanr, covr)
+    p01 = multivariate_normal.pdf(data.loc[lind,:], meanr, covr)
+    p10 = multivariate_normal.pdf(data.loc[rind,:], meanl, covl)
+    w = len(lind)/(len(rind) + len(lind))
+
+    proba0 = w*p00/(w*p00 + (1-w)*p01)
+    proba1 = (1-w)*p11/(w*p10 + (1-w)*p11)
+    proba = pd.DataFrame(index=node.indices,columns=['parent','child','new'])
+    try:
+        proba['parent'] = node.proba
+    except:
+        proba['parent'] = np.ones(len(node.indices))
+        node.proba = np.ones(len(node.indices))
+        
+
+    # proba['child'] = 2
+    proba.loc[node.left_indices,'child'], proba.loc[node.right_indices,'child'] = proba0, proba1
+    proba['new'] = proba['child'].mul(proba['parent'])
+    node.left.proba = proba.loc[node.left_indices,'new']
+    node.right.proba = proba.loc[node.right_indices, 'new']
+    
+    if filter:
+        node.left.indices = node.left.proba[node.left.proba['new']>0.9,:].index
+        node.right.indices = node.right.proba[node.right.proba['new']>0.9,:].index
+
     return node
-    # gm1 = GaussianMixture(1,covariance_type='full').fit(data.loc[node.left_indices,:])
-    # gm2 = GaussianMixture(1,covariance_type='full').fit(data.loc[node.right_indices,:])
+
 
 
         
@@ -420,14 +420,14 @@ class CrossNode():
 
 from scalable_gcca import learn
 
-def RNApp(rnadata=None):
+def RNApp(rnadata=None,nodelist=None):
     ppdata, gene_list = {},[]# set(rnadata[list(rnadata.keys())[0]].var_names)
     ppdata = {}
     # cellnum = [data.shape[0] for data in list(rnadata.values())]
-    nrepeat = 4
+    nrepeat = 1
 
-    usedata = [np.random.choice(len(rnadata.keys()),min(6,len(rnadata)), replace=False) for i in range(nrepeat)]
-    print(usedata)
+    # usedata = [np.random.choice(len(rnadata.keys()),min(6,len(rnadata)), replace=False) for i in range(nrepeat)]
+    # print(usedata)
 
 
 
@@ -436,7 +436,12 @@ def RNApp(rnadata=None):
     for i in rnadata.keys():
         if len(rnadata[i])==0 or i == list(rnadata.keys())[0]:
             continue
+        # print(len(rnadata[i]))
+        # if i == 6:
+            # print(nodelist[i].proba)
+        # rnadata[i] = rnadata[i][nodelist[i].proba>0.99,:]
         adata = sc.concat([adata,rnadata[i]]) #adata.concatenate(rnadata[i],batch_key='batch',join='outer') 
+        # print(len(rnadata[i]))
     # print(adata.obs_names[:10])
     sc.pp.normalize_total(adata, target_sum=1e4)
     sc.pp.log1p(adata)
@@ -444,6 +449,30 @@ def RNApp(rnadata=None):
     adata = adata[:,adata.var.highly_variable]
     sc.pp.scale(adata)
     sc.pp.pca(adata, n_comps=10)
+    pcs = pd.DataFrame(index=adata.obs_names, data=adata.obsm['X_pca'])
+    indices, flag = outlier_filter(pcs)
+    print(len(pcs),len(indices))
+    adata = adata[indices,:]
+    sc.pp.highly_variable_genes(adata,min_disp=0.25)
+    adata = adata[:,adata.var.highly_variable]
+    sc.pp.scale(adata)
+    sc.pp.pca(adata, n_comps=10)
+
+    vars = list()
+    for i in rnadata.keys():
+        if len(rnadata[i])<30:
+            vars.append(0)
+            continue
+        rnadata[i] = rnadata[i][list(set(rnadata[i].obs_names)&set(adata.obs_names)),:]
+        variance = adata[rnadata[i].obs_names,:].obsm['X_pca'][:,0].var()
+        vars.append(variance)
+    # print(np.argsort(vars)[-3:])
+
+    pre = min(len(rnadata),8)
+    usedata = [np.argsort(vars)[-pre:]]
+    print(usedata,rnadata.keys())
+    # print(usedata)
+    # usedata = [sorted(vars, key=vars.get, reverse=True)[:4]]
     
     # cellnumlist = [len(rnadata[i]) for i in rnadata.keys()]
     # largest  = np.argmax(cellnumlist)
@@ -461,10 +490,12 @@ def RNApp(rnadata=None):
         if len(rnadata[i]) < 100:
             data_cc[i] = []
             continue
+        rnadata[i] = rnadata[i][list(set(rnadata[i].obs_names)&set(adata.obs_names)),:]
         # cca = CCA(n_components=5)
         # cca.fit(adata[rnadata[i].obs_names,:].obsm['X_pca'].T, adata[list(set(adata.obs_names)-set(rnadata[i].obs_names)),:].obsm['X_pca'].T)
         # cca_loading = cca.coef_
         # data_cc[i] = cca_loading
+        
         data_cc[i] = adata[rnadata[i].obs_names,:].obsm['X_pca']
         data_cc[i] = pd.DataFrame(data=data_cc[i][:,:5],index=rnadata[i].obs_names,columns=['CC_'+str(k+1) for k in range(5)])
         indices = data_cc[i].index
@@ -479,10 +510,10 @@ def RNApp(rnadata=None):
         sortid = np.argsort(np.array([len(rnadata[i]) for i in usedata[k]]))[::-1]
         largeid = usedata[k][sortid[:3]]
         for i in usedata[k]:
-            
             if len(rnadata[i]) < 100 or i not in largeid:#  or i%8==3
                 usedata[k] = np.delete(usedata[k], np.where(usedata[k]==i))
                 continue
+            rnadata[i] = rnadata[i][list(set(rnadata[i].obs_names)&set(adata.obs_names)),:]
             if i in ppdata.keys():
                 continue
             if rnadata[i].shape[0] > 1000:
@@ -548,7 +579,8 @@ def RNApp(rnadata=None):
         cca_loading = gcca.h_list
         print(gcca.eigvals)
         # print(np.mean(cca_vector,axis=0).shape)
-        mean_vector = np.mean(cca_vector,axis=0)[:,0]
+        mean_vector = np.mean(cca_vector,axis=0)#[:,0]
+        # print(len(cca_vector),cca_vector[0].shape)
         # mean_vector = cca_vector[np.argmax([len(rnadata[i]) for i in usedata[k]])][:,0]
         # mean_vector = np.mean([cca_vector[i][:,0] for i in range(len(cca_vector))],axis=0)
         
@@ -561,6 +593,7 @@ def RNApp(rnadata=None):
             if len(rnadata[j]) < 100:
                 continue
             if j not in list(ppdata.keys()):
+                rnadata[j] = rnadata[j][list(set(rnadata[j].obs_names)&set(adata.obs_names)),:]
                 # adata = rnadata[j].copy()
 
                 # sc.pp.normalize_total(adata, target_sum=1e4)
@@ -577,6 +610,7 @@ def RNApp(rnadata=None):
                 # ppdata[j] = adata[:,list(gene_list)].X.toarray().T
                 ppdata[j] = adata[rnadata[j].obs_names,:].obsm['X_pca']
                 ppdata[j] = normalize(ppdata[j],copy=True).T
+            continue
 
 
             cca.fit(ppdata[j], mean_vector.reshape(-1,1))
@@ -586,16 +620,20 @@ def RNApp(rnadata=None):
             num = num + 1
             # cca_loading = cca.y_rotations_
         # print(meanscore)
+        meanscore=[0]
         score_list.append(np.median(meanscore))
         loadingdict[k] = cca_loading
         vectordict[k] = cca_vector
 
     
+    # bestk=0
+    # mean_vector = mean_vector[:,0]
     bestk = np.argmax(score_list)
-    print(usedata[bestk],score_list)
+    print(usedata[bestk])
     cca = CCA(n_components=5,max_iter=1000)
     if max(score_list) != -10000:
-        mean_vector = np.mean(vectordict[bestk],axis=0)
+        mean_vector = vectordict[bestk][0]
+        # mean_vector = np.mean(vectordict[bestk],axis=0)
 
 
     for i in rnadata.keys():
@@ -605,9 +643,9 @@ def RNApp(rnadata=None):
         if i not in usedata[bestk]:# i not in ppdata.keys():
             cca.fit(ppdata[i], mean_vector)
             cor = cca.score(ppdata[i], mean_vector)
-            if cor < -20:
-                data_cc[i] = []
-                continue
+            # if cor < -50:
+            #     data_cc[i] = []
+            #     continue
             # print(i+1,cor)
             cca_loading = cca.coef_
             # print(len(cca_loading),len(rnadata[i]),ppdata[i].shape[1])
@@ -654,20 +692,21 @@ def RNApp(rnadata=None):
     return data_cc
         
 
-def CrossSplit(adtdata=None,merge_cutoff=0.1,weight=1,max_k=10,max_ndim=2,bic='bic',marker_set=None, parent_key=set(), rnadata=None):
+def CrossSplit(adtdata=None,merge_cutoff=0.1,weight=1,max_k=10,max_ndim=2,bic='bic',marker_set=None, parent_key=set(), rnadata=None, nodelist=None):
     feature_scores, feature_sepnum = {}, {}
     datanum = len(rnadata.keys())
-    nodelist=[]
+    
     useADT = True
     
     # print(adtdata,rnadata)
     if adtdata == {} and datanum > 0:
-        adtdata = RNApp(rnadata.copy())
+        adtdata = RNApp(rnadata.copy(), nodelist)
         
         useADT = False
         # print(adtdata)
     if adtdata == {}:
-        adtdata = RNApp(rnadata.copy())
+        adtdata = RNApp(rnadata.copy(), nodelist)
+    nodelist=[]
     if datanum < 2: 
         print('==datanum:',datanum)
     for i in range(datanum): 
@@ -809,16 +848,19 @@ def CrossSplit(adtdata=None,merge_cutoff=0.1,weight=1,max_k=10,max_ndim=2,bic='b
         root.partitions = bipartitions
         nodelist.append(root)
 
-    if len(feature_scores) == 1:
+    if len(feature_scores) == 1: # If only one separable feature, need to be two dimensional
         if list(feature_sepnum.values())[0] <2:
             feature_scores[list(feature_scores.keys())[0]] = -10
     while len(feature_sepnum)>0 and max(list(feature_sepnum.values())) > 1:
         idx_best = np.argmax(list(feature_scores.values()))
         best_feature = list(feature_scores.keys())[idx_best]
+        # The best feature should be separable in at least two datasets.
         if feature_sepnum[best_feature] > 1: # or feature_scores[best_feature] > 0:
             break
         else:
             feature_scores[best_feature] -= 10
+
+
 
     # print('datanum',datanum,feature_scores)
     if len(feature_scores) == 0 or max(list(feature_scores.values()))<=-10:# or (feature_sepnum[best_feature]<2):
@@ -828,6 +870,10 @@ def CrossSplit(adtdata=None,merge_cutoff=0.1,weight=1,max_k=10,max_ndim=2,bic='b
             node = nodelist[i]
             if node != None:
                 node.indices = rnadata[i].obs_names
+                if len(feature_scores) == 0:
+                    node.stop = 'separable feature:'+str(len(feature_scores))
+                else:
+                    node.stop = 'best feature score:'+str(max(list(feature_scores.values())))
         crossnode = CrossNode(nodelist)
         score_dict = dict(zip(separable_features, scores_ll))
         crossnode = GenModelNode(crossnode, ('leaf',), artificial_w=None, score_dict=score_dict)
@@ -911,8 +957,9 @@ def CrossSplit(adtdata=None,merge_cutoff=0.1,weight=1,max_k=10,max_ndim=2,bic='b
         i in adtdata.keys() and adtdata[i].columns[0][:2]=='CC' and len(adtdata[i])!=len(rnadata[i])):
             if len(train_id)>0:
                 adata = rnadata[i][:,genes].copy()
-                sc.pp.normalize_total(adata, target_sum=1e4)
-                sc.pp.log1p(adata)
+                # sc.pp.normalize_total(adata, target_sum=1e4)
+                # sc.pp.log1p(adata)
+                # sc.pp.scale(adata, max_value=10, zero_center=False)
                 try:
                     feature = np.dot(adata.X.toarray(), w.values)
                 except:
@@ -938,7 +985,7 @@ def CrossSplit(adtdata=None,merge_cutoff=0.1,weight=1,max_k=10,max_ndim=2,bic='b
 
     crossnode = CrossNode(nodelist)
     score_dict = dict(zip(separable_features, scores_ll))
-    crossnode = GenModelNode(crossnode, best_feature, w, score_dict=score_dict, loss=loss)
+    crossnode = GenModelNode(crossnode, best_feature, w, score_dict=score_dict, outputmean=[min(m0,m1), max(m0,m1)], loss=loss)
     if continue_deep:
         # print(best_feature,)
         leftadt, rightadt, leftrna, rightrna, lw, rw = {},{},{},{},{},{}
@@ -979,12 +1026,13 @@ from torch.utils.data import DataLoader, Dataset, ConcatDataset
 import torch.nn.init as init
 
 def train_classifier(rnadata):
-    batch_num = 10
+    batch_num = 20
 
     class scRNAdata(Dataset):
         def __init__(self, adata):
-            sc.pp.normalize_total(adata, target_sum=1e4)
-            sc.pp.log1p(adata)
+            # sc.pp.normalize_total(adata, target_sum=1e4)
+            # sc.pp.log1p(adata)
+            # sc.pp.scale(adata, max_value=10, zero_center=False)
             try:
                 self.data = adata.X.toarray()
             except:
@@ -1083,7 +1131,7 @@ def train_classifier(rnadata):
             # wL1 = torch.norm(W, p=1, dim=0)
             # wL2 = torch.norm(W, p=2, dim=0)
             # print(label)
-            loss =  (Sw-10*Sb) + (wL2+wL1*10)*0.01 +torch.norm(output, p=2)*0.1
+            loss =  5*(2*Sw-Sb) + (wL2+wL1*10)*0.01 +torch.norm(output, p=2)*0.1
             return loss, miu0, miu1
 
 
@@ -1130,12 +1178,16 @@ def train_classifier(rnadata):
         
         return loss, miu0.mean().item(), miu1.mean().item()
 
-    epochs = 1000
+    epochs = 400
+    loss0 = 10000
     for t in range(epochs):
         # print(f"Epoch {t+1}\n-------------------------------")
         loss, mean0, mean1 = train(dataload, model, loss_fn1, loss_fn2, optimizer)
         if (t+1) % 20 == 0:
             print(f"Epoch {t+1} loss: {loss:>7f}")
+        if abs(loss-loss0) < 0.05 and loss<20:
+            break
+        loss0 = loss
     weight = model.fc.weight
     # weight = model.module.features[0].weight
     # print(weight.shape))
@@ -1428,10 +1480,16 @@ def HiScanFeatures(data,root,merge_cutoff,max_k,max_ndim,bic,parent_key={}):
     
 
     if 'CD4-2' in data.columns:
-        # key_marker = ['CD3-2', 'CD19','CD4-1','CD14']# , 'CD45RA', 'CD127', 'CLEC12A'
-        key_marker = [ 'CD161','TCR-V-7.2','CD4-2','CD8','CD14','CD25','CD127','CD45RA','CD45RO','CD43']#'CD3-2','CD56-1','CD4-1','CD3-1','CD27', 'CLEC12A', 'CD16','CD19','CD8','CD4-1''CD4-1','CD4-2','CD56-2', 'CD25',
+        key_marker = ['CD3-2', 'CD19','CD14','CD4-2','CD8','CD56-2']# , 'CD45RA', 'CD127'
+        # key_marker = [ 'CD14','CD25','CD127','CD45RA','CD45RO', 'CLEC12A','CD56-1','CD56-2']#'CD43','CD161','TCR-V-7.2','CD4-2','CD8','CD3-2','CD56-1','CD4-1','CD3-1','CD27', 'CLEC12A', 'CD16','CD19','CD8','CD4-1''CD4-1','CD4-2','CD56-2', 'CD25',
+    elif 'humanCD44' in data.columns:
+        key_marker = 'CD27, CD34, CD161, CD38, CD123, CD1c, CD33, CD235ab'
+        key_marker = key_marker.split(', ')
+        # print(key_marker)
+        # 'CD3, CD4, CD8, CD56_NCAM, CD19, CD20, CD27, CD38, CD14, CD123, CD1c, CD33, CD235ab, CD34, TCR_Vd2, TCR_Va7_2, CD161'
     elif 'CD27' in data.columns:
         key_marker = ['CD4', 'CD3', 'CD19', 'CD8a', 'CD27', 'CD14',]# 'CD16', 'CD45RA', 'CD127-IL7Ra', 'CD45RO', 'CD69','CD25'
+    
     else:
         key_marker = data.columns
         # key_marker = ['CD4', 'CD3', 'CD19', 'CD8a', 'CD14',]
@@ -1451,7 +1509,7 @@ def Scan(data,root,merge_cutoff,max_k,max_ndim,bic,parent_key={},scanfeatures=[]
     separable_features, bipartitions, scores, bic_list, all_clustering_dic[ndim] = ScoreFeatures(data,root,merge_cutoff,max_k,ndim,bic,rescan_features=list(set(scanfeatures)-set(parent_key)))
     
     rescan = False
-    if len(separable_features) == 0:
+    if len(separable_features) == 0 or max(scores)<=-90:
 
         rescan_features = []
         for item in all_clustering_dic[ndim]:
@@ -1555,12 +1613,13 @@ def ScoreFeatures(data,root,merge_cutoff,max_k,ndim,bic,rescan_features=None,sep
 
 
                 ### Avoid overly discrete features
-                dist0 = min(data.loc[~assignment,marker_list].max(axis=0) - data.loc[~assignment,marker_list].min(axis=0))
-                dist1 = min(data.loc[assignment,marker_list].max(axis=0) - data.loc[assignment,marker_list].min(axis=0))
-                # print(dist0, dist1)
-                if min(dist0,dist1) < np.log1p(4):
-                    ll_gain.append(-100 + min(dist0,dist1))
-                    continue
+                if data.columns[0][:2]!='CC':
+                    dist0 = min(data.loc[~assignment,marker_list].max(axis=0) - data.loc[~assignment,marker_list].min(axis=0))
+                    dist1 = min(data.loc[assignment,marker_list].max(axis=0) - data.loc[assignment,marker_list].min(axis=0))
+                    # print(dist0, dist1)
+                    if (min(dist0,dist1) < np.log1p(4) and len(marker_list)==1) or min(dist0,dist1) < np.log1p(2):
+                        ll_gain.append(-100 + min(dist0,dist1))
+                        continue
 
 
                 gmm1 = GaussianMixture(1,covariance_type='full')

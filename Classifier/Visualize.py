@@ -333,7 +333,7 @@ def plot_keymarker(data,traversal,node_ID,dpi=5,savepath=None):
 
 
 from subprocess import call
-def visualize_tree(root,data,outpath,filename,compact=False,rnadata=None):
+def visualize_tree(root,data,outpath,filename,compact=True,rnadata=None):
     """write tree structure into .dot and .png files."""
     
     # open a file, and design general format
@@ -412,7 +412,7 @@ def visualize_tree(root,data,outpath,filename,compact=False,rnadata=None):
         #     data = rawdata
 
         if node.key == ('artificial',):
-            markers = [('artificial',)]
+            markers = ('artificial',)
             # means_in_root['artificial'] = 0
             # adata = rnadata[node.indices,node.artificial_w.index].copy()
             # sc.pp.normalize_total(adata, target_sum=1e4)
