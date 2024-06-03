@@ -407,8 +407,39 @@ def gm_proba(node, data={}, filter=False):
     return node
 
 
+def RNApca(rnadata=None):
+    pcs = {}
+    for i in rnadata.keys():
+        adata = rnadata[i].copy()
+        if len(adata) < 100:
+            pcs[i] = None
+            continue
+        sc.pp.normalize_total(adata, target_sum=1e4)
+        sc.pp.log1p(adata)
+        sc.pp.highly_variable_genes(adata,min_disp=0.25)
+        adata = adata[:,adata.var.highly_variable]
+        sc.pp.scale(adata)
+        sc.pp.pca(adata, n_comps=10)
+        pcs[i] = pd.DataFrame(adata.obsm['X_pca'],index=adata.obs_names,columns=['PC'+str(k+1) for k in range(10)]) 
+    return pcs
 
-        
+
+def finish(nodelist, rnadata, feature_scores, separable_features, scores_ll):
+    for i in range(len(nodelist)):
+        node = nodelist[i]
+        if node != None:
+            node.indices = rnadata[i].obs_names
+            if len(feature_scores) == 0:
+                node.stop = 'separable feature:'+str(len(feature_scores))
+            elif max(list(feature_scores.values()))<=-10:
+                node.stop = 'best feature score:'+str(max(list(feature_scores.values())))
+            else:
+                node.stop = 'KNN classifier low confidence'
+                
+    crossnode = CrossNode(nodelist)
+    score_dict = dict(zip(separable_features, scores_ll))
+    crossnode = GenModelNode(crossnode, ('leaf',), artificial_w=None, score_dict=score_dict)
+    return crossnode
 
 
 class CrossNode():
@@ -701,9 +732,11 @@ def CrossSplit(adtdata=None,merge_cutoff=0.1,weight=1,max_k=10,max_ndim=2,bic='b
     # print(adtdata,rnadata)
     if adtdata == {} and datanum > 0:
         adtdata = RNApp(rnadata.copy(), nodelist)
-        
+        pcs=[None for i in range(datanum)]
         useADT = False
         # print(adtdata)
+    else:
+        pcs = RNApca(rnadata)
     if adtdata == {}:
         adtdata = RNApp(rnadata.copy(), nodelist)
     nodelist=[]
@@ -864,20 +897,8 @@ def CrossSplit(adtdata=None,merge_cutoff=0.1,weight=1,max_k=10,max_ndim=2,bic='b
 
     # print('datanum',datanum,feature_scores)
     if len(feature_scores) == 0 or max(list(feature_scores.values()))<=-10:# or (feature_sepnum[best_feature]<2):
-        
         # print('LDA test not passed',feature_scores,max(list(feature_scores.values())),feature_sepnum[best_feature])
-        for i in range(len(nodelist)):
-            node = nodelist[i]
-            if node != None:
-                node.indices = rnadata[i].obs_names
-                if len(feature_scores) == 0:
-                    node.stop = 'separable feature:'+str(len(feature_scores))
-                else:
-                    node.stop = 'best feature score:'+str(max(list(feature_scores.values())))
-        crossnode = CrossNode(nodelist)
-        score_dict = dict(zip(separable_features, scores_ll))
-        crossnode = GenModelNode(crossnode, ('leaf',), artificial_w=None, score_dict=score_dict)
-        # print('Stop:',feature_scores)
+        crossnode = finish(nodelist, rnadata, feature_scores, separable_features, scores_ll)
         return crossnode
 
     idx_best = np.argmax(list(feature_scores.values()))
@@ -915,7 +936,14 @@ def CrossSplit(adtdata=None,merge_cutoff=0.1,weight=1,max_k=10,max_ndim=2,bic='b
         # print('rna gene',len(rnadata[i].var_names))
         traindata[id] = rnadata[id][nodelist[id].indices,genes]
         traindata[id].obs['label'] = 0
-        partition = root.partitions[best_feature]
+        
+        nodelist[id].partitions[best_feature],flag = knn(adtdata[id].loc[:,best_feature], pcs[id], root.partitions[best_feature])
+        if flag != True:
+            nodelist[id].stop = 'KNN low confidence'
+            train_id.remove(id)
+            continue
+
+        partition = nodelist[id].partitions[best_feature]
         p1_mean = adtdata[id].loc[partition,best_feature].mean().values
         p2_mean = adtdata[id].loc[~partition,best_feature].mean().values
         if len(best_feature) == 1:
@@ -937,6 +965,9 @@ def CrossSplit(adtdata=None,merge_cutoff=0.1,weight=1,max_k=10,max_ndim=2,bic='b
         
         del(traindata)
         w = pd.Series(w.detach().numpy().reshape(-1), index=genes)
+    else:
+        crossnode = finish(nodelist, rnadata, feature_scores, separable_features, scores_ll)
+        return crossnode
 
     continue_deep = False
     for i in range(datanum):
@@ -1242,7 +1273,8 @@ def ReSplit(data=None,merge_cutoff=0.1,weight=1,max_k=10,max_ndim=2,bic='bic',ma
     root.ll = root.weight * unimodal.lower_bound_
     root.bic = unimodal.bic(data)
     
-    separable_features, bipartitions, scores_ll, all_clustering_dic, rescan = HiScanFeatures(data,root,merge_cutoff,max_k,max_ndim,bic,parent_key)
+    separable_features, bipartitions, scores_ll, all_clustering_dic, rescan = HiScanFeatures(data,
+    root,merge_cutoff,max_k,max_ndim,bic,parent_key)
 
     if len(separable_features) == 0:
         root.all_clustering_dic = all_clustering_dic
@@ -1393,21 +1425,22 @@ def root_param(root, data, best_feature):
         flag = p1_cosine > p2_cosine
 
     if flag:
-        root.right_indices = data.iloc[best_partition, :].index
+        # print(best_partition)
+        root.right_indices = data.loc[best_partition, :].index
         root.w_r = sum(best_partition)/len(best_partition)
         root.mean_r = p1_mean
         root.cov_r = p1_cov
-        root.left_indices = data.iloc[~best_partition, :].index 
+        root.left_indices = data.loc[~best_partition, :].index 
         root.w_l = sum(~best_partition)/len(best_partition)
         root.mean_l = p2_mean
         root.cov_l = p2_cov
         root.where_dominant = 'right'
     else:
-        root.right_indices = data.iloc[~best_partition, :].index
+        root.right_indices = data.loc[~best_partition, :].index
         root.w_r = sum(~best_partition)/len(best_partition)
         root.mean_r = p2_mean
         root.cov_r = p2_cov
-        root.left_indices = data.iloc[best_partition, :].index
+        root.left_indices = data.loc[best_partition, :].index
         root.w_l = sum(best_partition)/len(best_partition)
         root.mean_l = p1_mean
         root.cov_l = p1_cov
@@ -1480,8 +1513,8 @@ def HiScanFeatures(data,root,merge_cutoff,max_k,max_ndim,bic,parent_key={}):
     
 
     if 'CD4-2' in data.columns:
-        key_marker = ['CD3-2', 'CD19','CD14','CD4-2','CD8','CD56-2']# , 'CD45RA', 'CD127'
-        # key_marker = [ 'CD14','CD25','CD127','CD45RA','CD45RO', 'CLEC12A','CD56-1','CD56-2']#'CD43','CD161','TCR-V-7.2','CD4-2','CD8','CD3-2','CD56-1','CD4-1','CD3-1','CD27', 'CLEC12A', 'CD16','CD19','CD8','CD4-1''CD4-1','CD4-2','CD56-2', 'CD25',
+        # key_marker = ['CD3-2', 'CD19','CD14','CD4-2','CD8','CD56-2']# , 'CD45RA', 'CD127'
+        key_marker = [ 'CD14','CD25','CD127','CD45RA','CD45RO', 'CLEC12A','CD56-1','CD56-2']#'CD43','CD161','TCR-V-7.2','CD4-2','CD8','CD3-2','CD56-1','CD4-1','CD3-1','CD27', 'CLEC12A', 'CD16','CD19','CD8','CD4-1''CD4-1','CD4-2','CD56-2', 'CD25',
     elif 'humanCD44' in data.columns:
         key_marker = 'CD27, CD34, CD161, CD38, CD123, CD1c, CD33, CD235ab'
         key_marker = key_marker.split(', ')
@@ -1493,7 +1526,8 @@ def HiScanFeatures(data,root,merge_cutoff,max_k,max_ndim,bic,parent_key={}):
     else:
         key_marker = data.columns
         # key_marker = ['CD4', 'CD3', 'CD19', 'CD8a', 'CD14',]
-    separable_features, bipartitions, scores, bic_list, all_clustering_dic, rescan = Scan(data,root,merge_cutoff,max_k,max_ndim,bic,parent_key,key_marker)
+    separable_features, bipartitions, scores, bic_list, all_clustering_dic, rescan = Scan(data,
+    root,merge_cutoff,max_k,max_ndim,bic,parent_key,key_marker)
 
     # if len(separable_features)==0:
     #     print('no key markers separable')
@@ -1506,7 +1540,8 @@ def Scan(data,root,merge_cutoff,max_k,max_ndim,bic,parent_key={},scanfeatures=[]
     ndim = 1
     all_clustering_dic = {}
 
-    separable_features, bipartitions, scores, bic_list, all_clustering_dic[ndim] = ScoreFeatures(data,root,merge_cutoff,max_k,ndim,bic,rescan_features=list(set(scanfeatures)-set(parent_key)))
+    separable_features, bipartitions, scores, bic_list, all_clustering_dic[ndim] = ScoreFeatures(data,
+    root,merge_cutoff,max_k,ndim,bic,rescan_features=list(set(scanfeatures)-set(parent_key)))
     
     rescan = False
     if len(separable_features) == 0 or max(scores)<=-90:
@@ -1643,12 +1678,14 @@ def ScoreFeatures(data,root,merge_cutoff,max_k,ndim,bic,rescan_features=None,sep
                 ll_ = gmm_.lower_bound_
 
                 ll_gain.append(  (ll1 + ll0) - ll_  )
-                
+
                 # bic_mlabels.append( bic1 + bic0 )
             best_mlabel_idx = np.argmax(ll_gain)
             best_mlabel = labels[best_mlabel_idx]
             
             bipartitions[item] = merged_label == best_mlabel
+            # if data.columns[0][:2]!='CC': 
+            #     bipartitions[item] = knn(data.loc[:,item], pcs, bipartitions[item])
             if soft == False and all_clustering[item]['similarity_stopped']>=0.01:
                 scores.append( ll_gain[best_mlabel_idx] + 5*(merge_cutoff - all_clustering[item]['similarity_stopped']) )
             else:
@@ -1681,6 +1718,83 @@ def ScoreFeatures(data,root,merge_cutoff,max_k,ndim,bic,rescan_features=None,sep
 
             
     return separable_features, bipartitions, scores, bic_list, all_clustering
+
+from sklearn.neighbors import KNeighborsClassifier as knc
+def knn(data, pcs, assignment):
+    #### Select model cells for knn classifier ####
+
+    # gmm0, gmm1 = GaussianMixture(1,covariance_type='full'), GaussianMixture(1,covariance_type='full')
+    # gmm0.fit(data.loc[assignment,])
+    # gmm1.fit(data.loc[assignment,:])
+    
+    lind, rind = data[~assignment].index, data[assignment].index
+    postp0, postp1 = postproba(data, lind, rind)
+    postp0, postp1 = pd.Series(index=lind, data=postp0), pd.Series(index=rind, data=postp1)
+    index0, index1 = postp0[postp0>0.95].index, postp1[postp1>0.95].index
+    print('origin:',sum(~assignment),sum(assignment),'filterd:',len(index0),len(index1))
+    if len(index0)==0 or len(index1)==0:
+        return assignment, False
+    
+
+    pcs = pd.concat([pcs,data],axis=1)
+    postp0, postp1 = postproba(pcs, index0, index1)
+    postp0, postp1 = pd.Series(index=index0, data=postp0), pd.Series(index=index1, data=postp1)
+    index0, index1 = postp0[postp0>0.95].index, postp1[postp1>0.95].index
+    print('filterd:',len(index0),len(index1))
+    if len(index0)==0 or len(index1)==0:
+        return assignment, False
+    
+
+
+    ### Filtering cells with high posterior probability in surface marker space
+    # pcs = pd.concat([pcs,data],axis=1)
+    # p0,p1 = gmm0.predict_proba(data), gmm1.predict_proba(data)
+    # print(p0)
+    # p = (p0*sum(~assignment)+p1*sum(assignment)) 
+    # p0, p1 = p0*sum(~assignment)/p, p1*sum(assignment)/p
+    # p0, p1 = pd.Series(index=data.index, data=p0), pd.Series(index=data.index, data=p1)
+    # index0, index1 = data[p0>0.95].index, data[p1>0.95].index
+    # print('origin:',sum(~assignment),sum(assignment),'filterd:',len(index0),len(index1))
+
+    ### Filtering cells with high posterior probability in RNA pca and marker space
+    # gm0, gm1 = GaussianMixture(1,covariance_type='full'), GaussianMixture(1,covariance_type='full')
+    # gm0.fit(pcs.loc[index0,:])
+    # gm1.fit(pcs.loc[index1,:])
+    # p00, p01 = gm0.predict_proba(pcs.loc[index0,:]), gm1.predict_proba(pcs.loc[index0,:])
+    # p10, p11 = gm0.predict_proba(pcs.loc[index1,:]), gm1.predict_proba(pcs.loc[index1,:])
+    # w = len(index0)/(len(index0) + len(index1))
+    # proba0 = pd.Series(w*p00/(w*p00 + (1-w)*p01), index0)
+    # proba1 = pd.Series((1-w)*p11/(w*p10 + (1-w)*p11), index1) 
+    # index0, index1 = proba0[proba0>0.95].index, proba1[proba1>0.95].index
+    # print('filterd:',len(index0),len(index1))
+
+    ### KNN classifier
+    label = pd.Series(index=list(index0)+list(index1))
+    label.loc[index0], label.loc[index1] = 0, 1
+    classifier = knc(n_neighbors=10, weights='distance')
+    classifier.fit(pcs.loc[label.index,:], label.values)
+    lowindex = list(set(data.index)-set(label.index))
+    lowconf = classifier.predict(pcs.loc[lowindex])
+    lowconf = pd.Series(index=lowindex, data=lowconf)
+    newlabel = pd.concat([lowconf,label],axis=0)
+    assignment = newlabel==1
+    print(sum(~assignment),sum(assignment))
+    return assignment, True
+    
+
+def postproba(data, lind, rind):
+    meanl, meanr = data.loc[lind,:].mean(axis=0), data.loc[rind,:].mean(axis=0)
+    covl, covr = data.loc[lind,:].cov(), data.loc[rind,:].cov()
+    p00 = multivariate_normal.pdf(data.loc[lind,:], meanl, covl)
+    p11 = multivariate_normal.pdf(data.loc[rind,:], meanr, covr)
+    p01 = multivariate_normal.pdf(data.loc[lind,:], meanr, covr)
+    p10 = multivariate_normal.pdf(data.loc[rind,:], meanl, covl)
+    w = len(lind)/(len(rind) + len(lind))
+
+    proba0 = w*p00/(w*p00 + (1-w)*p01)
+    proba1 = (1-w)*p11/(w*p10 + (1-w)*p11)
+    return proba0, proba1
+
 
 
 

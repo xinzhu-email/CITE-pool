@@ -127,8 +127,8 @@ rna_path = ['../SeuratV4/subdata/4_31_RNA.h5ad',
 #     rna_path.append('../data/covid19/subdata/RNA_'+str(i)+'.h5ad')
 
 
-output_path = '../output/7_3/'
-merge_cutoff = 0.1
+output_path = '../output/7_3/rna'
+merge_cutoff = 0.2
 compact_flag = True
 current_treepath = '../output/7_3/'#'../data/4tumor/output/ADT_'
 current_tree = ['0','1','2', '3','4'] #[] #(np.arange(0,9)).astype(str)
