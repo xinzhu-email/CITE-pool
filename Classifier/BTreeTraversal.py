@@ -127,7 +127,9 @@ class BTreeTraversal:
         else:
             for i in range(len(self.nodename)):
                 if self.nodename[i].split('_')[1] == 'leaf':
-                    label.loc[self.nodelist[i].indices,'Label'] = self.nodename[i]
+                    # print(len(label))
+                    indices = label.index.intersection(self.nodelist[i].indices)
+                    label.loc[indices,'Label'] = self.nodename[i]
 
         return label
 

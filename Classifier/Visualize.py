@@ -140,6 +140,8 @@ def visualize_pair(data,node,nodename,**plot_para):
         # print(current_indices)
         data = node.embedding.loc[current_indices,:]
     else:
+        # current_indices = data.index
+        # data = data
         data = data.loc[current_indices,:]
     data['artificial'] = 0
     # print(data)
@@ -333,7 +335,7 @@ def plot_keymarker(data,traversal,node_ID,dpi=5,savepath=None):
 
 
 from subprocess import call
-def visualize_tree(root,data,outpath,filename,compact=True,rnadata=None):
+def visualize_tree(root,data,outpath,filename,compact=True,rnadata=None,modeltree=None):
     """write tree structure into .dot and .png files."""
     
     # open a file, and design general format
@@ -354,6 +356,7 @@ def visualize_tree(root,data,outpath,filename,compact=True,rnadata=None):
     nodelist = []
     idxStack = []
     indStack = []
+    modelqueue = []
     
     tot_cells = len(root.indices)
     #means_in_root = root.marker_summary['mean']
@@ -380,6 +383,7 @@ def visualize_tree(root,data,outpath,filename,compact=True,rnadata=None):
     
     # Enqueue Root and initialize height 
     queue.append(node) 
+    modelqueue.append(modeltree)
     
     i = 0
     #print(str(node.ind)+'_'+root.key)
@@ -401,6 +405,7 @@ def visualize_tree(root,data,outpath,filename,compact=True,rnadata=None):
     while(len(queue) > 0): 
         # Print front of queue and remove it from queue 
         node = queue.pop(0) 
+        modeltree = modelqueue.pop(0)
         # ind = indStack.pop(0)
         idx = idxStack.pop(0)
         ######
@@ -411,161 +416,216 @@ def visualize_tree(root,data,outpath,filename,compact=True,rnadata=None):
         # else:
         #     data = rawdata
 
-        if node.key == ('artificial',):
-            markers = ('artificial',)
-            # means_in_root['artificial'] = 0
-            # adata = rnadata[node.indices,node.artificial_w.index].copy()
-            # sc.pp.normalize_total(adata, target_sum=1e4)
-            # sc.pp.log1p(adata)
-            # data.loc[node.indices,'artificial'] = np.dot(adata.X.toarray(),node.artificial_w)
-            # data['artificial'] = 0
-            # data.loc[list(node.indices), 'artificial'] = node.artificial_w
-            stds_in_root['artificial'] = node.artificial_w.std()
-            # print(data['artificial'])
+        if node is None:
+            if modeltree.key != ('leaf',):
+                i = i + 1
+                idxStack.append(i)
+                col =  matplotlib.colors.to_hex(matplotlib.cm.Greens(leaf_col(np.log(0))))
+                tree_dot.writelines(str(i)+' [label="'+str(i)+'_'+'_'.join(('leaf',))+'\\n'+ \
+                                    str(0)+ ' (0%)\\n'+ \
+                                    ''+'",fillcolor="'+col+'",fontsize=20];')
+                tree_dot.writelines(str(idx)+' -> '+str(i)+ ' [labeldistance=3, label = "'+'",fontsize=25, color='+['black','red']['left'=='left']+\
+                                ', style='+['solid','bold']['left'=='left']+'];')
+                i = i + 1
+                idxStack.append(i)
+                tree_dot.writelines(str(i)+' [label="'+str(i)+'_'+'_'.join(('leaf',))+'\\n'+ \
+                                    str(0)+ ' (0%)\\n'+ \
+                                    ''+'",fillcolor="'+col+'",fontsize=20];')
+                tree_dot.writelines(str(idx)+' -> '+str(i)+ ' [labeldistance=3, label = "'+'",fontsize=25, color='+['black','red']['left'=='right']+\
+                                ', style='+['solid','bold']['left'=='right']+'];')
+                nodelist.append(('leaf',))
+                nodelist.append(('leaf',))
+                queue.append(None)
+                queue.append(None)
+                modelqueue.append(modeltree.left)
+                modelqueue.append(modeltree.right)
+        
+        elif node is not None:
 
+            if node.key == ('artificial',):
+                markers = ('artificial',)
+                # means_in_root['artificial'] = 0
+                # adata = rnadata[node.indices,node.artificial_w.index].copy()
+                # sc.pp.normalize_total(adata, target_sum=1e4)
+                # sc.pp.log1p(adata)
+                # data.loc[node.indices,'artificial'] = np.dot(adata.X.toarray(),node.artificial_w)
+                # data['artificial'] = 0
+                # data.loc[list(node.indices), 'artificial'] = node.artificial_w
+                stds_in_root['artificial'] = node.artificial_w.std()
+                # print(data['artificial'])
+   
+            # left child 
+            if node.left is not None and node.left.key != ('cutleaf',): 
+                nodelist.append(node.left.key)
+                queue.append(node.left)
+                modelqueue.append(modeltree.left)
+                i = i + 1
+                idxStack.append(i)
+                # indStack.append(node.left.ind)
+                #print(str(i)+'_'+node.left.key)
                 
-        # left child 
-        if node.left is not None and node.left.key != ('cutleaf',): 
-            nodelist.append(node.left.key)
-            queue.append(node.left)
-            i = i + 1
-            idxStack.append(i)
-            # indStack.append(node.left.ind)
-            #print(str(i)+'_'+node.left.key)
-            
-            percent = str(round(len(node.left.indices)/tot_cells*100,2))+'%'
-            mean_temp = node.mean_l
-            
-            # mean_temp['artificial'] = data['artificial'].mean()
-            
-            if node.left.key == ('leaf',):
-                # left leaf node     
-                # print(node.left.ind,node.left.key)  
-                if compact:
-                    offset_in_leaf = ''
-                else:
-                    temp = (mean_temp - means_in_root)/stds_in_root
-                    offset_in_leaf = '\n' + markers[0]+': '+str(round(temp[markers[0]],2))
-                    for k in range(1,len(markers)):
-                        offset_in_leaf = offset_in_leaf + '\n' + markers[k]+': '+ str(round(temp[markers[k]],2))
-                    
-                col =  matplotlib.colors.to_hex(matplotlib.cm.Greens(leaf_col(np.log(len(node.left.indices)))))
-                tree_dot.writelines(str(i)+' [label="'+str(i)+'_'+'_'.join(node.left.key)+'\\n'+ \
-                                    str(len(node.left.indices))+ ' ('+percent+')\\n'+ \
-                                    offset_in_leaf+'",fillcolor="'+col+'",fontsize=20];')
-            elif node.left.key != ('cutleaf',):
-                # left branch node
-                # print(node.left.key)
-                if node.left.key == ('artificial',):
+                percent = str(round(len(node.left.indices)/tot_cells*100,2))+'%'
+                mean_temp = node.mean_l
+                
+                # mean_temp['artificial'] = data['artificial'].mean()
+                
+                if node.left.key == ('leaf',):
+                    # left leaf node     
+                    # print(node.left.ind,node.left.key)  
+                    if compact:
+                        offset_in_leaf = ''
+                    else:
+                        temp = (mean_temp - means_in_root)/stds_in_root
+                        offset_in_leaf = '\n' + markers[0]+': '+str(round(temp[markers[0]],2))
+                        for k in range(1,len(markers)):
+                            offset_in_leaf = offset_in_leaf + '\n' + markers[k]+': '+ str(round(temp[markers[k]],2))
+                        
+                    col =  matplotlib.colors.to_hex(matplotlib.cm.Greens(leaf_col(np.log(len(node.left.indices)))))
                     tree_dot.writelines(str(i)+' [label="'+str(i)+'_'+'_'.join(node.left.key)+'\\n'+ \
-                                    str(len(node.left.indices))+' ('+percent+')\\n'+ \
-                                    '",fillcolor="'+branch_col[len(node.left.key)]+'",fontsize=25];')
-                else:
-                    all_clustering = node.left.all_clustering_dic[len(node.left.key)]
-                    bp_ncluster = all_clustering[node.left.key]['bp_ncluster']
-                    mp_ncluster = all_clustering[node.left.key]['mp_ncluster']
-                    
-                    tree_dot.writelines(str(i)+' [label="'+str(i)+'_'+'_'.join(node.left.key)+'\\n'+ \
+                                        str(len(node.left.indices))+ ' ('+percent+')\\n'+ \
+                                        offset_in_leaf+'",fillcolor="'+col+'",fontsize=20];')
+                elif node.left.key != ('cutleaf',):
+                    # left branch node
+                    # print(node.left.key)
+                    if node.left.key == ('artificial',):
+                        tree_dot.writelines(str(i)+' [label="'+str(i)+'_'+'_'.join(node.left.key)+'\\n'+ \
                                         str(len(node.left.indices))+' ('+percent+')\\n'+ \
-                                        '('+str(mp_ncluster)+'|'+str(bp_ncluster)+')",fillcolor="'+branch_col[len(node.left.key)]+'",fontsize=25];')
+                                        '",fillcolor="'+branch_col[len(node.left.key)]+'",fontsize=25];')
+                    else:
+                        all_clustering = node.left.all_clustering_dic[len(node.left.key)]
+                        bp_ncluster = all_clustering[node.left.key]['bp_ncluster']
+                        mp_ncluster = all_clustering[node.left.key]['mp_ncluster']
+                        
+                        tree_dot.writelines(str(i)+' [label="'+str(i)+'_'+'_'.join(node.left.key)+'\\n'+ \
+                                            str(len(node.left.indices))+' ('+percent+')\\n'+ \
+                                            '('+str(mp_ncluster)+'|'+str(bp_ncluster)+')",fillcolor="'+branch_col[len(node.left.key)]+'",fontsize=25];')
 
-            # edge from parent to left node
-            offset = ''
-            # print(mean_temp, means_in_root, stds_in_root)
-            # if node.left.key in data.columns:
-            #     mean_temp = data.loc[node.left.indices,:].mean() 
-            # elif node.key in node.left.mean.index:
-            #     mean_temp = node.left.mean
-            # else:
-            #     mean_temp = pd.concat([data.loc[node.left.indices,:].mean(), node.left.mean],axis=0)
-            # if len(root.left.embedding) != 0:
-            #     mean_temp = pd.concat([data.loc[node.left.indices,:].mean(), node.left.mean],axis=0)
-            # print(mean_temp, means_in_root, stds_in_root)
-            if nodelist[idx][0][:2]== 'CC' and len(nodelist[idx])>1:
-                val = (mean_temp.values - means_in_root['artificial'])/stds_in_root['artificial']
-                offset = offset + str(round(val[0],2))
-            else:
-                for m in nodelist[idx]:
-                    # print(mean_temp, means_in_root, stds_in_root)
-                    val = (mean_temp[m] - means_in_root[m])/stds_in_root[m]
-                    offset = offset + str(round(val,2))+'\n'
-                
-            #print(str(idx)+'->'+str(i))
-            tree_dot.writelines(str(idx)+' -> '+str(i)+ ' [labeldistance=3, label = "'+offset+'",fontsize=25, color='+['black','red'][node.where_dominant=='left']+\
-                                ', style='+['solid','bold'][node.where_dominant=='left']+'];')
-
-        # right child 
-        if node.right is not None and node.right.key != ('cutleaf',): 
-            nodelist.append(node.right.key)
-            queue.append(node.right) 
-            i = i + 1
-            idxStack.append(i)
-            # indStack.append(node.right.ind)
-            #print(str(i)+'_'+node.right.key)
-            
-            percent = str(round(len(node.right.indices)/tot_cells*100,2))+'%'
-            mean_temp = None
-            mean_temp = node.mean_r
-            # if node.right.key[0] in data.columns:
-            #     mean_temp = data.loc[node.right.indices,:].mean() 
-            # elif node.key[0] in node.right.mean.index:
-            #     mean_temp = node.right.mean
-            # else:
-            #     mean_temp = pd.concat([data.loc[node.right.indices,:].mean(), node.right.mean],axis=0)
-             
-            # mean_temp['artificial'] = data['artificial'].mean()
-
-            if node.right.key == ('leaf',):
-                # print(node.right.ind,node.right.key)
-                # right leaf node
-                if compact:
-                    offset_in_leaf = ''
+                # edge from parent to left node
+                offset = ''
+                # print(mean_temp, means_in_root, stds_in_root)
+                # if node.left.key in data.columns:
+                #     mean_temp = data.loc[node.left.indices,:].mean() 
+                # elif node.key in node.left.mean.index:
+                #     mean_temp = node.left.mean
+                # else:
+                #     mean_temp = pd.concat([data.loc[node.left.indices,:].mean(), node.left.mean],axis=0)
+                # if len(root.left.embedding) != 0:
+                #     mean_temp = pd.concat([data.loc[node.left.indices,:].mean(), node.left.mean],axis=0)
+                # print(mean_temp, means_in_root, stds_in_root)
+                if nodelist[idx][0][:2]== 'CC' and len(nodelist[idx])>1:
+                    val = (mean_temp.values - means_in_root['artificial'])/stds_in_root['artificial']
+                    offset = offset + str(round(val[0],2))
                 else:
-                    temp = (mean_temp - means_in_root)/stds_in_root
-                    offset_in_leaf = '\n' + markers[0]+': '+str(round(temp[markers[0]],2))
-                    for k in range(1,len(markers)):
-                        offset_in_leaf = offset_in_leaf + '\n' + markers[k]+': '+ str(round(temp[markers[k]],2))
-
-                col =  matplotlib.colors.to_hex(matplotlib.cm.Greens(leaf_col(np.log(len(node.right.indices)))))
-                tree_dot.writelines(str(i)+' [label="'+str(i)+'_'+'_'.join(node.right.key)+'\\n'+ \
-                                    str(len(node.right.indices))+ ' ('+percent+')'+'\\n'+ \
-                                    offset_in_leaf+'",fillcolor="'+col+'",fontsize=20];')
-
-            elif node.right.key != ('cutleaf',):
-                if node.right.key == ('artificial',):
-                    tree_dot.writelines(str(i)+' [label="'+str(i)+'_'+'_'.join(node.right.key)+'\\n'+ \
-                                    str(len(node.right.indices))+' ('+percent+')\\n'+ \
-                                    '",fillcolor="'+branch_col[len(node.right.key)]+'",fontsize=25];')
-                # right branch node
-                # print(node.right.key)
-                else:
-                    # print(node.right.key)
-                    all_clustering = node.right.all_clustering_dic[len(node.right.key)]
-                    bp_ncluster = all_clustering[node.right.key]['bp_ncluster']
-                    mp_ncluster = all_clustering[node.right.key]['mp_ncluster']
+                    for m in nodelist[idx]:
+                        # print(mean_temp, means_in_root, stds_in_root)
+                        val = (mean_temp[m] - means_in_root[m])/stds_in_root[m]
+                        offset = offset + str(round(val,2))+'\n'
                     
-                    tree_dot.writelines(str(i)+' [label="'+str(i)+'_'+'_'.join(node.right.key)+'\\n'+ \
-                                        str(len(node.right.indices))+' ('+percent+')\\n'+ \
-                                        '('+str(mp_ncluster)+'|'+str(bp_ncluster)+')",fillcolor="'+branch_col[len(node.right.key)]+'",fontsize=25];')
+                #print(str(idx)+'->'+str(i))
+                tree_dot.writelines(str(idx)+' -> '+str(i)+ ' [labeldistance=3, label = "'+offset+'",fontsize=25, color='+['black','red'][node.where_dominant=='left']+\
+                                    ', style='+['solid','bold'][node.where_dominant=='left']+'];')
+                
+                if node.right is None:
+                    i = i + 1
+                    idxStack.append(i)
+                    col =  matplotlib.colors.to_hex(matplotlib.cm.Greens(leaf_col(0)))
+                    tree_dot.writelines(str(i)+' [label="'+str(i)+'_'+'_'.join(('leaf',))+'\\n'+ \
+                                        str(0)+ ' (0%)\\n'+ \
+                                        ''+'",fillcolor="'+col+'",fontsize=20];')
+                    tree_dot.writelines(str(idx)+' -> '+str(i)+ ' [labeldistance=3, label = "'+'",fontsize=25, color='+['black','red'][node.where_dominant=='left']+\
+                                    ', style='+['solid','bold'][node.where_dominant=='right']+'];')
+                    nodelist.append(('leaf',))
+                    queue.append(None)
+                    modelqueue.append(modeltree.right)
 
-            # edge from parent to right node
-            offset = ''
-            # # val = (mean_temp - means_in_root[m])/stds_in_root[m]
-            # offset = str(round(mean_temp,2))
-            # if len(root.right.embedding) != 0:
-            #     mean_temp = pd.concat([data.loc[node.right.indices,:].mean(), node.right.mean],axis=0)
-            if nodelist[idx][0][:2]== 'CC' and len(nodelist[idx])>1:
-                val = (mean_temp.values - means_in_root['artificial'])/stds_in_root['artificial']
-                offset = offset + str(round(val[0],2))
-            else:
-                for m in nodelist[idx]:
-                    val = (mean_temp[m] - means_in_root[m])/stds_in_root[m]
-                    offset = offset + str(round(val,2))+'\n'
-                # print(m,str(round(val,2)))
-            # print(str(idx)+'->'+str(node.ind))
-            tree_dot.writelines(str(idx)+' -> '+str(i)+' [labeldistance=3, label = "'+offset+'",fontsize=25, color='+['black','red'][node.where_dominant=='right']+ \
-                                ', style='+['solid','bold'][node.where_dominant=='right']+'];')
-    
+
+            # right child 
+            if node.right is not None and node.right.key != ('cutleaf',): 
+                if node.left is None:
+                    i = i + 1
+                    idxStack.append(i)
+                    col =  matplotlib.colors.to_hex(matplotlib.cm.Greens(leaf_col(np.log(0))))
+                    tree_dot.writelines(str(i)+' [label="'+str(i)+'_'+'_'.join(('leaf',))+'\\n'+ \
+                                        str(0)+ ' (0%)\\n'+ \
+                                        ''+'",fillcolor="'+col+'",fontsize=20];')
+                    tree_dot.writelines(str(idx)+' -> '+str(i)+ ' [labeldistance=3, label = "'+'",fontsize=25, color='+['black','red'][node.where_dominant=='left']+\
+                                    ', style='+['solid','bold'][node.where_dominant=='left']+'];')
+                    nodelist.append(('leaf',))
+                    queue.append(None)
+                    modelqueue.append(modeltree.left)
+
+                nodelist.append(node.right.key)
+                queue.append(node.right) 
+                modelqueue.append(modeltree.right)
+                i = i + 1
+                idxStack.append(i)
+                # indStack.append(node.right.ind)
+                #print(str(i)+'_'+node.right.key)
+                
+                percent = str(round(len(node.right.indices)/tot_cells*100,2))+'%'
+                mean_temp = None
+                mean_temp = node.mean_r
+                # if node.right.key[0] in data.columns:
+                #     mean_temp = data.loc[node.right.indices,:].mean() 
+                # elif node.key[0] in node.right.mean.index:
+                #     mean_temp = node.right.mean
+                # else:
+                #     mean_temp = pd.concat([data.loc[node.right.indices,:].mean(), node.right.mean],axis=0)
+                
+                # mean_temp['artificial'] = data['artificial'].mean()
+
+                if node.right.key == ('leaf',):
+                    # print(node.right.ind,node.right.key)
+                    # right leaf node
+                    if compact:
+                        offset_in_leaf = ''
+                    else:
+                        temp = (mean_temp - means_in_root)/stds_in_root
+                        offset_in_leaf = '\n' + markers[0]+': '+str(round(temp[markers[0]],2))
+                        for k in range(1,len(markers)):
+                            offset_in_leaf = offset_in_leaf + '\n' + markers[k]+': '+ str(round(temp[markers[k]],2))
+
+                    col =  matplotlib.colors.to_hex(matplotlib.cm.Greens(leaf_col(np.log(len(node.right.indices)))))
+                    tree_dot.writelines(str(i)+' [label="'+str(i)+'_'+'_'.join(node.right.key)+'\\n'+ \
+                                        str(len(node.right.indices))+ ' ('+percent+')'+'\\n'+ \
+                                        offset_in_leaf+'",fillcolor="'+col+'",fontsize=20];')
+
+                elif node.right.key != ('cutleaf',):
+                    if node.right.key == ('artificial',):
+                        tree_dot.writelines(str(i)+' [label="'+str(i)+'_'+'_'.join(node.right.key)+'\\n'+ \
+                                        str(len(node.right.indices))+' ('+percent+')\\n'+ \
+                                        '",fillcolor="'+branch_col[len(node.right.key)]+'",fontsize=25];')
+                    # right branch node
+                    # print(node.right.key)
+                    else:
+                        # print(node.right.key)
+                        all_clustering = node.right.all_clustering_dic[len(node.right.key)]
+                        bp_ncluster = all_clustering[node.right.key]['bp_ncluster']
+                        mp_ncluster = all_clustering[node.right.key]['mp_ncluster']
+                        
+                        tree_dot.writelines(str(i)+' [label="'+str(i)+'_'+'_'.join(node.right.key)+'\\n'+ \
+                                            str(len(node.right.indices))+' ('+percent+')\\n'+ \
+                                            '('+str(mp_ncluster)+'|'+str(bp_ncluster)+')",fillcolor="'+branch_col[len(node.right.key)]+'",fontsize=25];')
+
+                
+                # edge from parent to right node
+                offset = ''
+                # # val = (mean_temp - means_in_root[m])/stds_in_root[m]
+                # offset = str(round(mean_temp,2))
+                # if len(root.right.embedding) != 0:
+                #     mean_temp = pd.concat([data.loc[node.right.indices,:].mean(), node.right.mean],axis=0)
+                if nodelist[idx][0][:2]== 'CC' and len(nodelist[idx])>1:
+                    val = (mean_temp.values - means_in_root['artificial'])/stds_in_root['artificial']
+                    offset = offset + str(round(val[0],2))
+                else:
+                    for m in nodelist[idx]:
+                        val = (mean_temp[m] - means_in_root[m])/stds_in_root[m]
+                        offset = offset + str(round(val,2))+'\n'
+                    # print(m,str(round(val,2)))
+                # print(str(idx)+'->'+str(node.ind))
+                tree_dot.writelines(str(idx)+' -> '+str(i)+' [labeldistance=3, label = "'+offset+'",fontsize=25, color='+['black','red'][node.where_dominant=='right']+ \
+                                    ', style='+['solid','bold'][node.where_dominant=='right']+'];')
+
     # main body is completed
   
     tree_dot.writelines('}')
@@ -573,7 +633,7 @@ def visualize_tree(root,data,outpath,filename,compact=True,rnadata=None):
 
     # Convert to png using system command (requires Graphviz)
     import os
-    print(os.getcwd())
+    print(os.getcwd()+outpath)
     call(['dot', '-Tpdf', outpath+'/'+filename+'.dot', '-o', outpath+'/'+filename+'.pdf', '-Gdpi=100'])
     
     
