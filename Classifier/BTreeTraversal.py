@@ -24,7 +24,7 @@ import pdb
 
 class BTreeTraversal:
     
-    def __init__(self,tree,method='bfs',min_BIC_node=None,nodename=None,tree_summary=None,leaf_summary=None,ll=None,n_components=None,save_min_BIC=False):
+    def __init__(self,tree,method='complete tree',min_BIC_node=None,nodename=None,tree_summary=None,leaf_summary=None,ll=None,n_components=None,save_min_BIC=False):
         
         #print('initializing...')
         
@@ -32,6 +32,10 @@ class BTreeTraversal:
         self.method = method
         self.save_min_BIC = save_min_BIC
         self.min_BIC_node = min_BIC_node
+        
+        nodelist =  self.levelOrderTraversal()
+        if self.method == 'complete tree':
+            self.nodelist = self.completeTraversal(nodenum=len(nodelist))
         if self.method == 'bfs':
             self.nodelist = self.levelOrderTraversal()
         if self.method == 'dfs':
@@ -48,14 +52,14 @@ class BTreeTraversal:
         # print(self.bicminname)
         # print(self.nodename)
         # self.nodename = [str(i)+'_'+nodename_temp[i] for i in range(len(nodename_temp))]
-        nodename_temp = ['_'.join(x.key) for x in self.nodelist]
-        self.nodename = [str(i)+'_'+nodename_temp[i] for i in range(len(nodename_temp))]
-        self.tree_summary, self.leaf_summary = self.summarize()
-        if 'll' in self.tree.__dir__():
-            self.ll = self.leaf_summary['ll'].sum()
-            self.n_components = self.leaf_summary.shape[0]
+        nodename_temp = ['_'.join(x.key) if x is not None else None for x in self.nodelist]
+        self.nodename = [str(i)+'_'+nodename_temp[i] if nodename_temp[i] is not None else None for i in range(len(nodename_temp))]
+        # self.tree_summary, self.leaf_summary = self.summarize()
+        # if 'll' in self.tree.__dir__():
+        #     self.ll = self.leaf_summary['ll'].sum()
+        #     self.n_components = self.leaf_summary.shape[0]
         
-      
+
     def summarize(self):
         if 'll' in self.tree.__dir__():
             tree_summary = pd.DataFrame({'Count':[len(x.indices) for x in self.nodelist],
@@ -126,10 +130,11 @@ class BTreeTraversal:
             return self.nodelist, label
         else:
             for i in range(len(self.nodename)):
-                if self.nodename[i].split('_')[1] == 'leaf':
-                    # print(len(label))
-                    indices = label.index.intersection(self.nodelist[i].indices)
-                    label.loc[indices,'Label'] = self.nodename[i]
+                if self.nodename[i] is not None:
+                    if self.nodename[i].split('_')[1] == 'leaf':
+                        # print(len(label))
+                        indices = label.index.intersection(self.nodelist[i].indices)
+                        label.loc[indices,'Label'] = self.nodename[i]
 
         return label
 
@@ -364,6 +369,60 @@ class BTreeTraversal:
         
         else:
             return nodelist
+
+
+    def completeTraversal(self,root=None, finetune=False, nodeID=None, nodenum=0):
+        #print('bfs...')
+        if root != None:
+            node = root
+        else:
+            node = self.tree
+        if node is None: 
+            return
+
+        queue = [] 
+        nodelist = []
+
+        queue.append(node) 
+        nodelist.append(node)
+        cutID = []
+        count = 1
+
+        while(len(queue) > 0): 
+            node = queue.pop(0)  
+
+            if count == nodenum:
+                break
+            if node is None:
+                queue.append(None)
+                nodelist.append(None)
+                queue.append(None)
+                nodelist.append(None)
+                continue
+            count += 1
+            
+            if finetune:
+                node, cutID = bfs_finetune(node, nodeID, cutID)
+                nodelist[node.ind] = node
+
+            if node.left is not None: 
+                nodelist.append(node.left)
+                queue.append(node.left)
+            else:
+                queue.append(None)
+                nodelist.append(None)
+
+            if node.right is not None: 
+                nodelist.append(node.right)
+                queue.append(node.right) 
+            else:
+                queue.append(None)
+                nodelist.append(None)
+
+            
+            
+        # print(nodelist)
+        return nodelist
 
 
     def levelOrderTraversal(self, root=None, finetune=False, nodeID=None): 
