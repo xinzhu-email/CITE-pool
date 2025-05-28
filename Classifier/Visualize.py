@@ -771,7 +771,7 @@ def visualize_tree(root,data,outpath,filename,compact=True,rnadata=None,modeltre
                 else:
                     # print(nodelist,idx)
                     for m in nodelist[idx]:
-                        # print(mean_temp, means_in_root, stds_in_root)
+                        # print(idx)
                         val = (mean_temp[m] - means_in_root[m])/stds_in_root[m]
                         offset = offset + str(round(val,2))+'\n'
 
@@ -944,7 +944,7 @@ def visualize_modeltree(root,outpath,filename):
     # bp_ncluster = all_clustering[node.key]['bp_ncluster']
     # mp_ncluster = all_clustering[node.key]['mp_ncluster']
     ndata = str(node.val_cnt)
-    if len(node.indices)<=4:
+    if len(node.indices) <= 4: 
         training_datasets = str(node.indices)
     else:
         training_datasets = str(len(node.indices))
