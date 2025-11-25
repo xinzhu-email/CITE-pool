@@ -1,4 +1,4 @@
-# CITE-sort
+# CITE-pool
 
 <img src="readme_figs/CITE-sort.png" width = "35%"   height = "70%"  alt="CITE-sort" align=left /> 
 
@@ -10,17 +10,29 @@
 
 
 
-An artificial-cell-type aware surface marker clustering method for CITE-seq data. 
+Grounded Integration of single-cell Multi-omics data with CITE-pool
 
 ## Description
 
-CITE-sort conducts auto-gating with CITE-seq ADT data using recursive Gaussian Mixture Model. It is robust against artificial cell types that stem from multiplets. CITE-sort also provides concrete explanations of its internal decision process by constructing a biologically meaningful sort tree.  See our [paper](https://academic.oup.com/bioinformatics/article/36/Supplement_1/i542/5870491) for more details. 
-
-Below shows an example of sort tree constructed by CITE-sort from an in-house PBMC dataset. Each node represents a subpopulation. The title of each inner node represents the selected surface markers subspace. Red and blue colors represent the two component complexes for subdivision. Edges are colored according to their corresponding component complexes. Leaf nodes are hand-curated and are annotated with domain knowledge. Cell types that should not exist are labeled as suspect _artificial cell type_ (ACT) clusters. Suspect ACT clusters are characterized by their population percentages in the overall dataset (denoted by ‘prop’) and their multi-sample multiplets percentages (denoted by ‘MSM’). Abbreviations: iNK: intermediate NK cells; mNK: vast majority of NK cells; C-mono: classical monocytes; NC-mono: non-classical monocytes; mDC: myeloid DC; DNT: double negative T cells.
+Integrating single-cell datasets across multiple sources and conditions requires principled,
+explicit methods that ground cell identity in marker gene expression rather than implicit latent representations.
+Existing integration approaches project cells into opaque latent spaces where integration logic cannot be directly inspected,limiting biological interpretability.
+We propose CITE-pool, a cross-modal framework that integrates CITE-seq and scRNA-seq data through an explicit,
+interpretable identity space where each dimension represents a cell-population partition defined by cross-batch-conserved marker gene signatures.
+When surfaceome markers are incomplete, CITE-pool identifies cross-batch-conserved transcriptomic co-expressions to expand the identity space while preserving biological interpretability.
+Compared to MultiVI, MIDAS, sciPENN and scMaMoT, CITE-pool achieves superior cross-batch consistency,
+robustness to sparse or mismatched surface markers,
+preservation of mismatched cell types,
+and uniquely enables discovery of novel identity markers beyond the CITE-seq antibody panel.
+In cross-condition analyses, CITE-pool disentangles identity-defining genes from condition-responsive genes,
+clarifying the transcriptomic basis of cellular heterogeneity.
+By making integration decisions transparent and grounded in biology,
+CITE-pool provides a principled alternative to existing methods,
+drawing insights into the complex transcriptomic landscape and cellular heterogeneity.
 
 <img src="readme_figs/taxonomy.png" alt="taxonomy" style="zoom:67%;" />
 
-## Usage
+<!-- ## Usage
 
 ### Input
 
@@ -92,7 +104,7 @@ Qiuyu Lian\*, Hongyi Xin\*, Jianzhu Ma, Liza Konnikova, Wei Chen\#, Jin Gu\#,Kon
 
 ## Maintainer
 
-Qiuyu Lian, Hongyi Xin.
+Qiuyu Lian, Hongyi Xin. -->
 
 
 
