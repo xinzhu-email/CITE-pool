@@ -2,7 +2,7 @@ import pandas as pd
 from Classifier.BTree import BTree
 from Classifier.Visualize import visualize_tree, visualize_modeltree
 from Classifier.BTreeTraversal import BTreeTraversal
-from Classifier.adtReSplit import CrossSplit, CrossNode, retrain, gm_proba, ReClassify
+from Classifier.adtReSplit import CrossSplit, CrossNode, retrain, gm_proba, ReClassify, UnassignedKnn, cca_gene_selection
 import pickle
 import argparse
 import os
@@ -14,20 +14,6 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import scipy.sparse 
 
-def olddfs(node, adata, merge_cutoff, prior_gene):
-    if node.key == ('leaf',):
-        adata_sub = adata[list(set(node.indices)&set(adata.obs_names)),:]
-        print(adata_sub.shape)
-        # print(len(node.indices),adata_sub.X.shape)
-        # sc.pp.scale(adata_sub, max_value=10)
-        # sc.tl.pca(adata_sub, n_comps=10)
-        # node.stop = None
-        node, bic_list, min_bic_node = Choose_leaf(data=adata_sub,prior_gene=prior_gene,merge_cutoff=merge_cutoff,use_parent=True) 
-        return node       
-    else:
-        node.left = dfs(node.left, adata, merge_cutoff, prior_gene)
-        node.right = dfs(node.right, adata, merge_cutoff, prior_gene)
-        return node
 
 def dfs(crossnode, adtdata, rnadata, merge_cutoff, useADT=True, ifretrain=False, fitgaussian=False, probafilter=False):
     # if crossnode.modelnode.key == ('CD14',):
@@ -39,9 +25,9 @@ def dfs(crossnode, adtdata, rnadata, merge_cutoff, useADT=True, ifretrain=False,
     #     return crossnode
     
     # print(crossnode.modelnode.indices)
-    if  crossnode.modelnode.ind in [] : # 3,5,6 crossnode.modelnode.key == ('leaf',) 
+    if  crossnode.modelnode.ind in []  : # crossnode.modelnode.key == ('leaf',)
         # print(crossnode.modelnode.key) 
-        
+        # crossnode.nodelist[1] = crossnode.nodelist[1].left
         if ifretrain or fitgaussian or reclass:
             return crossnode
         if useADT:
@@ -70,17 +56,25 @@ def dfs(crossnode, adtdata, rnadata, merge_cutoff, useADT=True, ifretrain=False,
         #     crossnode = CrossSplit(adtdata.copy(),merge_cutoff, weight=np.ones(len(list(rnadata.keys()))), rnadata=rnadata.copy(),crossnode=crossnode,marker_set=crossnode.modelnode.key)
         #     nodelist = crossnode.nodelist
         if ifretrain:
-            # if crossnode.modelnode.ind in [39]: #or crossnode.modelnode.loss.detach().numpy()>10 or len(crossnode.modelnode.key)==2
-            print(crossnode.modelnode.key)
-            crossnode.modelnode.artificial_w, crossnode.modelnode.embedding, crossnode.modelnode.loss = retrain(
-                            crossnode.nodelist, rnadata.copy(), genes=crossnode.modelnode.artificial_w.index)
+            if crossnode.modelnode.ind in [12]: # 2,4,5,6,7,11,24,30 or crossnode.modelnode.loss.detach().numpy()>10 or len(crossnode.modelnode.key)==2
+                print(crossnode.modelnode.key)
+                # if len(crossnode.modelnode.indices) < 4:
+                #     usealldata = True
+                # else:
+                #     usealldata = False
+                # genes = cca_gene_selection(adtdata.copy(), rnadata.copy(), crossnode.nodelist,crossnode.modelnode.key)
+                # print(crossnode.modelnode.artificial_w.index[:20])
+                # genes = crossnode.modelnode.artificial_w.index
+                crossnode.modelnode.artificial_w, crossnode.modelnode.embedding, crossnode.modelnode.loss = retrain(
+                                crossnode.nodelist, rnadata.copy(), adtdata.copy(), crossnode.modelnode.key, crossnode.modelnode) # 
         if reclass:
-            if crossnode.modelnode.ind in [4]:
-                crossnode = ReClassify(merge_cutoff, rnadata.copy(), crossnode)
+            if crossnode.modelnode.ind in [12]: # 4,7,
+                crossnode = ReClassify(merge_cutoff, rnadata.copy(), crossnode, adtdata)
 
-        lnodelist, rnodelist, ladt, radt, lrna, rrna = [], [], {}, {}, {}, {}
+        lnodelist, rnodelist, ladt, radt, lrna, rrna = [], [], {}, {}, {}, {} 
         for i in range(len(nodelist)):
             node = nodelist[i]
+            node.indices = node.indices.intersection(rnadata[i].obs_names)
             
             if node != None:
                 if node.left is not None and node.right is not None:
@@ -88,9 +82,12 @@ def dfs(crossnode, adtdata, rnadata, merge_cutoff, useADT=True, ifretrain=False,
                     #     # print(len(node.indices),len(node.left.indices) + len(node.right.indices))
                     #     crossnode.nodelist[i].indices = list(node.left.indices) + list(node.right.indices)
                     #     # print(len(crossnode.nodelist[i].indices))
-                    if fitgaussian and crossnode.modelnode.key == ('CD14','CLEC12A',):
+                    # if crossnode.modelnode.ind in [7]:
+                    if fitgaussian and crossnode.modelnode.ind in [2] :#
                         # print(crossnode.modelnode.key)
                         node = gm_proba(node, adtdata[i], probafilter)
+                    if assign:
+                        node =  UnassignedKnn(node,crossnode.modelnode, adtdata[i], rnadata[i].copy())
                     # if useADT:
                     #     if len(adtdata[i]) > 0:
                     #         ladt[i], radt[i] = adtdata[i].loc[node.left.indices,:], adtdata[i].loc[node.right.indices,:]
@@ -156,19 +153,25 @@ def dfs(crossnode, adtdata, rnadata, merge_cutoff, useADT=True, ifretrain=False,
         crossnode.left = dfs(lcrossnode, adtdata, rnadata, merge_cutoff, useADT, ifretrain, fitgaussian, probafilter)
         crossnode.right = dfs(rcrossnode, adtdata, rnadata, merge_cutoff, useADT, ifretrain, fitgaussian, probafilter)
 
-        # if crossnode.modelnode.ind in [39]:
-        #     print(crossnode.modelnode.ind)
+        # if crossnode.modelnode.ind in [6]:
+        #     # for k in range(2,3):
+        #     #     crossnode.nodelist[k].left_indices = crossnode.nodelist[k].right.indices
+        #     #     crossnode.nodelist[k].right_indices = crossnode.nodelist[k].left.indices
+        # #     print(crossnode.modelnode.ind)
         #     for i in range(len(crossnode.left.nodelist)):
-                
-        #         if crossnode.left.nodelist[i] is not None and crossnode.right.right.nodelist[i] is not None:
+        #         # if i == 2:
+        #         #     continue
+        #         # crossnode.nodelist[i].left_indices = []
+        #         # crossnode.nodelist[i].right_indices = crossnode.nodelist[i].indices
+        #         if crossnode.left.nodelist[i] is not None and crossnode.right.left.nodelist[i] is not None:
         #             # print('before:',len(crossnode.right.left.left.nodelist[i].indices))
         #             # if crossnode.right.left is None:
         #             #     crossnode.right.left = crossnode.left
                     
         #             crossnode.left.nodelist[i].indices = crossnode.left.nodelist[i].indices.append(
-        #                 crossnode.right.right.nodelist[i].indices) 
+        #                 crossnode.right.left.nodelist[i].indices) 
         #             crossnode.nodelist[i].left_indices = crossnode.left.nodelist[i].indices 
-        #             crossnode.nodelist[i].right_indices = crossnode.right.left.nodelist[i].indices 
+        #             crossnode.nodelist[i].right_indices = crossnode.right.right.nodelist[i].indices 
                     
         #             # print('after:',len(crossnode.right.left.left.nodelist[i].indices))
         #             # crossnode.nodelist[i].indices = crossnode.right.nodelist[i].indices
@@ -176,7 +179,7 @@ def dfs(crossnode, adtdata, rnadata, merge_cutoff, useADT=True, ifretrain=False,
         #         #     crossnode.left.left.nodelist[i] = crossnode.left.left.right.nodelist[i]
         #         #     crossnode.right.nodelist[i].indices = crossnode.right.nodelist[i].indices.append(
         #         #         crossnode.left.left.left.left.nodelist[i].indices) 
-        #     crossnode.right = crossnode.right.left
+        #     crossnode.right = crossnode.right.right
             
 
 
@@ -208,20 +211,24 @@ day,adt_path,rna_path,path= [0,3,7],[],[],[]
 #     rna_path.append('../data/covid19/subdata/RNA_'+str(i)+'.h5ad')
 
 
-for i in range(2):
-    path.append('../data/result section 2/'+str(i+1)+'/data.h5ad')
+# for i in range(3):
+#     path.append('../data/result section 2/'+str(i+1)+'/data.h5ad')
+    # path.append('../data/PBMC DATA/'+str(i+1)+'/data.h5ad')
+
 
 # path = ['../data/st/breast cancer pair/scraw.h5ad']
+# path = ['../data/covid19/COMBAT-CITESeq-EXPRESSION-ATLAS.h5ad']
+path = ['../data/mosaic celltype/data3.h5ad']
 
 
-output_path = '../output/result section 2/1v2'
-merge_cutoff = 0.1
+
+output_path = '../output/mosaic celltype/3tem_test'
+merge_cutoff = 0.4
 compact_flag = True
-current_treepath = '../output/result section 2/1v2'#'../data/4tumor/output/ADT_' 
-current_tree = ['0','1','2','3'] #[ ,'4'] # (np.arange(0,9)).astype(str)
-useadt, userna =   False,   True,       
-fitgaussian, probafilter, ifretrain, reclass =    False, False, True,  False,    #       
-
+current_treepath = '../output/mosaic celltype/3tem' # '../output/PBMC_/' result 1 scalable/3datasets*conditions/new 
+current_tree = ['0','1','2','3'] #] # (np.arange(0,7)).astype(str)
+useadt, userna =   True,   False,    
+fitgaussian, probafilter, ifretrain, reclass, assign =      False,  False,  True,  False,   False,     # 
 
 starttime = time.time()
 print('read data and run CITE-pool.')
@@ -293,7 +300,7 @@ if len(current_tree) != 0:
         #     f = open(current_treepath+'_'+current_tree[i]+'/tree.pickle','rb')
 
         if i ==0:
-            f = open(current_treepath+'/0'+'/tree.pickle','rb')
+            f = open(current_treepath+'/0'+'/tree_retrain.pickle','rb')
             # print('using retrained tree')
             tree = pickle.load(f)
             f.close()
@@ -360,17 +367,15 @@ if not os.path.exists(output):
     os.mkdir(output)
 modeltree = modeltree_dfs(crossnode.modelnode, crossnode)
 
-if ifretrain:
-    f = open(output+'/tree_retrain_50.pickle','wb')
-else:
-    visualize_modeltree(modeltree, output, 'tree')
-    f = open(output+'/tree.pickle','wb')
+
+visualize_modeltree(modeltree, output, 'tree')
+f = open(output+'/tree_sft.pickle','wb')
 pickle.dump(modeltree,f)
 f.close()
 
 batch, dataid  = 1, 1
 for i in range(len(adtdata)):
-    if ifretrain:
+    if ifretrain and reclass == False:
         break
     tree = inner_dfs(crossnode.nodelist[i], crossnode, i)
     tree.indices = rnadata[i].obs_names
