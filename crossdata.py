@@ -56,7 +56,7 @@ def dfs(crossnode, adtdata, rnadata, merge_cutoff, useADT=True, ifretrain=False,
         #     crossnode = CrossSplit(adtdata.copy(),merge_cutoff, weight=np.ones(len(list(rnadata.keys()))), rnadata=rnadata.copy(),crossnode=crossnode,marker_set=crossnode.modelnode.key)
         #     nodelist = crossnode.nodelist
         if ifretrain:
-            if crossnode.modelnode.ind in [12]: # 2,4,5,6,7,11,24,30 or crossnode.modelnode.loss.detach().numpy()>10 or len(crossnode.modelnode.key)==2
+            if crossnode.modelnode.ind in [2]: # 2,4,5,6,7,11,24,30 or crossnode.modelnode.loss.detach().numpy()>10 or len(crossnode.modelnode.key)==2
                 print(crossnode.modelnode.key)
                 # if len(crossnode.modelnode.indices) < 4:
                 #     usealldata = True
@@ -65,10 +65,10 @@ def dfs(crossnode, adtdata, rnadata, merge_cutoff, useADT=True, ifretrain=False,
                 # genes = cca_gene_selection(adtdata.copy(), rnadata.copy(), crossnode.nodelist,crossnode.modelnode.key)
                 # print(crossnode.modelnode.artificial_w.index[:20])
                 # genes = crossnode.modelnode.artificial_w.index
-                crossnode.modelnode.artificial_w, crossnode.modelnode.embedding, crossnode.modelnode.loss = retrain(
+                crossnode.modelnode.artificial_w, crossnode.modelnode.embedding, crossnode.modelnode.loss, crossnode.nodelist = retrain(
                                 crossnode.nodelist, rnadata.copy(), adtdata.copy(), crossnode.modelnode.key, crossnode.modelnode) # 
         if reclass:
-            if crossnode.modelnode.ind in [12]: # 4,7,
+            if crossnode.modelnode.ind in [2]: # 4,7,
                 crossnode = ReClassify(merge_cutoff, rnadata.copy(), crossnode, adtdata)
 
         lnodelist, rnodelist, ladt, radt, lrna, rrna = [], [], {}, {}, {}, {} 
@@ -369,14 +369,14 @@ modeltree = modeltree_dfs(crossnode.modelnode, crossnode)
 
 
 visualize_modeltree(modeltree, output, 'tree')
-f = open(output+'/tree_sft.pickle','wb')
+f = open(output+'/tree.pickle','wb')
 pickle.dump(modeltree,f)
 f.close()
 
 batch, dataid  = 1, 1
 for i in range(len(adtdata)):
-    if ifretrain and reclass == False:
-        break
+    # if ifretrain and reclass == False:
+    #     break
     tree = inner_dfs(crossnode.nodelist[i], crossnode, i)
     tree.indices = rnadata[i].obs_names
     

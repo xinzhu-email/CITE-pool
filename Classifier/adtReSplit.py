@@ -262,12 +262,16 @@ def retrain(nodelist, rnadata, adtdata, feature, modelnode):  # gene?
             
     print('------start retrain------')
     
-    w, m0, m1, loss = LearnPseudoMaker(traindata)
+    w, m0, m1, loss, deltaW = LearnPseudoMaker(traindata)
     # w, m0, m1, loss = train_classifier(traindata)
     del(traindata)
     w = pd.Series(w.detach().numpy().reshape(-1), index=genes)
+    for i in range(len(nodelist)): 
+        nodelist[i].artificial_w = w  #+ pd.Series(deltaW[i].detach().numpy().reshape(-1), index=genes)
+        # print(nodelist[i].artificial_w)
 
-    return w, [m0, m1], loss
+
+    return w, [m0, m1], loss, nodelist
 
 from sklearn.mixture import GaussianMixture as GMM
 
@@ -1549,7 +1553,7 @@ def LearnPseudoMaker(rnadata):
             deltah = torch.matmul(x, self.deltaW[dataid].squeeze(-1).t()).squeeze(-1)
             output = self.fc(x)
             # print(output.shape)
-            h = output[:,0] + deltah
+            h = output[:,0] #+ deltah
             logits = output[:,1:]
             probs = self.softmax(logits)
 
@@ -1651,7 +1655,7 @@ def LearnPseudoMaker(rnadata):
             h_norm = torch.norm(h, p=2)
             # print(l_classify.shape, l_correlation.shape, center.sum())
             # l_correlation = 0
-            l = l_classify + l_correlation*10 + torch.relu(10-center.var())*10 + variance*0.01 + entropy + \
+            l = l_classify + l_correlation*10 + torch.relu(1-center.var())*10 + variance*0.01 + entropy + \
                  center.sum()*0.001 + wL1*0.01 + h_norm*0.001
 
             return l, center, [probs.mean(0).detach(), center.detach(),   l_classify.item(), entropy.item(), center.var().item()]
@@ -1688,6 +1692,7 @@ def LearnPseudoMaker(rnadata):
 
                 loss1, center, losslist = loss_fn1(h, p, y, model.fc.weight[:,0])
                 miu0[i], miu1[i] = center[0], center[1]
+                loss1 = loss1 #+ torch.norm(model.deltaW[i], p=2)*10
                 # loss2 = loss_fn2(feature, y)
                 # if i == 1:
                 #     loss1 = 4*loss1
@@ -1718,7 +1723,7 @@ def LearnPseudoMaker(rnadata):
 
         return loss, miu0.mean().item(), miu1.mean().item()
 
-    epochs = 400
+    epochs = 600
     loss0 = 10000
     for t in range(epochs):
         # print(f"Epoch {t+1}\n-------------------------------")
@@ -1731,16 +1736,18 @@ def LearnPseudoMaker(rnadata):
         loss0 = loss
         # scheduler.step()
     weight = model.fc.weight[0,:]
+    deltaW = model.deltaW
     probs = {}
-    # for i in range(len(data)):
-    #     h, probs[i] = model(scRNAdata(rnadata[i].copy()).data)
-    # print(weight.shape)
+    for i in range(len(rnadata)):
+        probs[i] =  scRNAdata(rnadata[i].copy()).data.dot(model.fc.weight[1:,:].detach().numpy().T) 
 
+    # print(weight.shape)
     # weight = F.normalize(weight)
     # weight = model.module.features[0].weight
     # print(weight.shape))
     # print(w0[0,0],weight[0,0])
-    return weight, mean0, mean1, loss
+    return weight, mean0, mean1, loss, deltaW
+
 
 def cca_gene_selection(adtdata, rnadata, nodelist, feature):
     allgenes,degenes = [],[]
