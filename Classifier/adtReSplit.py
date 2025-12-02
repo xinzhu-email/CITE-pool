@@ -262,12 +262,16 @@ def retrain(nodelist, rnadata, adtdata, feature, modelnode):  # gene?
             
     print('------start retrain------')
     
-    w, m0, m1, loss, deltaW = LearnPseudoMaker(traindata)
+    w, m0, m1, loss, deltaW, probs = LearnPseudoMaker(traindata)
     # w, m0, m1, loss = train_classifier(traindata)
     del(traindata)
     w = pd.Series(w.detach().numpy().reshape(-1), index=genes)
     for i in range(len(nodelist)): 
-        nodelist[i].artificial_w = w  #+ pd.Series(deltaW[i].detach().numpy().reshape(-1), index=genes)
+        nodelist[i].artificial_w = w  + pd.Series(deltaW[i].detach().numpy().reshape(-1), index=genes)
+        p = probs[i].detach()
+        pred =  pd.DataFrame(np.argmax(p, axis=1), index=rnadata[i].obs_names)
+        nodelist[i].left_indices = pred[pred==0].index
+        nodelist[i].right_indices = pred[pred==1].index
         # print(nodelist[i].artificial_w)
 
 
@@ -1553,7 +1557,7 @@ def LearnPseudoMaker(rnadata):
             deltah = torch.matmul(x, self.deltaW[dataid].squeeze(-1).t()).squeeze(-1)
             output = self.fc(x)
             # print(output.shape)
-            h = output[:,0] #+ deltah
+            h = output[:,0] + deltah
             logits = output[:,1:]
             probs = self.softmax(logits)
 
@@ -1644,7 +1648,7 @@ def LearnPseudoMaker(rnadata):
             if m.sum() == 0:
                 l_correlation = 0
             else:
-                l_correlation = torch.relu(0.9-self.correlation(h, m[:,0]))
+                l_correlation = torch.relu(0.81-self.correlation(h, m[:,0])**2)
             prob_entropy = -torch.sum(probs*torch.log(probs+1e-8),dim=1).mean()
             type_entropy = -torch.mean(probs*torch.log(probs+1e-8),dim=0).mean()
             entropy = prob_entropy - type_entropy*0.5
@@ -1655,10 +1659,10 @@ def LearnPseudoMaker(rnadata):
             h_norm = torch.norm(h, p=2)
             # print(l_classify.shape, l_correlation.shape, center.sum())
             # l_correlation = 0
-            l = l_classify + l_correlation*10 + torch.relu(1-center.var())*10 + variance*0.01 + entropy + \
+            l = l_classify + l_correlation*20 + torch.relu(1-center.var())*10 + variance*0.01 + entropy + \
                  center.sum()*0.001 + wL1*0.01 + h_norm*0.001
 
-            return l, center, [probs.mean(0).detach(), center.detach(),   l_classify.item(), entropy.item(), center.var().item()]
+            return l, center, [probs.mean(0).detach(), l_correlation.detach(), center.detach(),   l_classify.item(), entropy.item(), center.var().item()]
 
 
     loss_fn1 = LowDimClustering()
@@ -1690,9 +1694,9 @@ def LearnPseudoMaker(rnadata):
                 #     continue
                 h, probs = model(X,dataid=i)
 
-                loss1, center, losslist = loss_fn1(h, p, y, model.fc.weight[:,0])
+                loss1, center, losslist = loss_fn1(h, probs, y, model.fc.weight[:,0])
                 miu0[i], miu1[i] = center[0], center[1]
-                loss1 = loss1 #+ torch.norm(model.deltaW[i], p=2)*10
+                loss1 = loss1 + torch.norm(model.deltaW[i], p=2)*10
                 # loss2 = loss_fn2(feature, y)
                 # if i == 1:
                 #     loss1 = 4*loss1
@@ -1746,7 +1750,7 @@ def LearnPseudoMaker(rnadata):
     # weight = model.module.features[0].weight
     # print(weight.shape))
     # print(w0[0,0],weight[0,0])
-    return weight, mean0, mean1, loss, deltaW
+    return weight, mean0, mean1, loss, deltaW, probs
 
 
 def cca_gene_selection(adtdata, rnadata, nodelist, feature):
