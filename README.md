@@ -1,6 +1,6 @@
 # CITE-pool
 
-<img src="readme_figs/CITE-pool.png" width = "35%"   height = "70%"  alt="CITE-pool" align=left /> 
+<img src="readme_figs/CITE-pool.png" width = "35%"   height = "70%"  alt="CITE-pool" /> 
 
 
 
