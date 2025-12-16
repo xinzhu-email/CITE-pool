@@ -1,9 +1,7 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-Created on Sun Aug 18 15:41:14 2019
+Created on Jan 15 23:44:58 2025
 
-@author: lqyair
+@author: xinzhujiang
 """
 
 class BTree:
@@ -11,7 +9,8 @@ class BTree:
     def __init__(self, key, left = None, right = None, indices = None, stop=None,\
                  all_clustering_dic = None, where_dominant = None, weight=None, ll=None, bic=None,\
                  score_ll=None, score_dict=None, child_right=None, child_left=None, w_l=None, w_r=None, ind=None, marker=None,\
-                 separable_feature=None, mean=None, cov=None, mean_l=None, mean_r=None, cov_l=None, cov_r=None, rescan=False, val_cnt=None):
+                 separable_feature=None, mean=None, cov=None, mean_l=None, mean_r=None, cov_l=None, cov_r=None, rescan=False, val_cnt=None,\
+                 pc_loading=None,parent_pc=None,outliers=None,embedding=None,partitions=None,artificial_w=None,loss=100,probs=1, pseudo_marker=None):
         self.key = key # a str
         self.right = right # a BstNode
         self.left = left # a BstNode
@@ -41,6 +40,13 @@ class BTree:
         self.cov_r = cov_r
         self.rescan = rescan
         self.val_cnt = val_cnt
+        self.outliers  = outliers
+        self.embedding = embedding
+        self.partitions = partitions
+        self.artificial_w = artificial_w
+        self.pseudo_marker = pseudo_marker
+        self.loss = loss
+        self.probs = probs
             
     
     def display(self):
