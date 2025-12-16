@@ -1,6 +1,6 @@
 # CITE-pool
 
-<img src="readme_figs/CITE-pool.png" width = "35%"   height = "70%"  alt="CITE-pool" /> 
+<img src="readme_figs/CITE-pool overview.png" width = "35%"   height = "70%"  alt="CITE-pool" /> 
 
 
 
@@ -30,7 +30,10 @@ By making integration decisions transparent and grounded in biology,
 CITE-pool provides a principled alternative to existing methods,
 drawing insights into the complex transcriptomic landscape and cellular heterogeneity.
 
-<img src="readme_figs/taxonomy.png" alt="taxonomy" style="zoom:67%;" />
+## Run
+python RunCITEpool.py --data_path ./datasets --output_path ./output 
+
+<!-- <img src="readme_figs/taxonomy.png" alt="taxonomy" style="zoom:67%;" /> -->
 
 <!-- ## Usage
 

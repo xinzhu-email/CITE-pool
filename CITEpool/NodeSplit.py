@@ -360,7 +360,7 @@ def LearnPseudoMaker(rnadata):
         batch_num = 16
     else:
         batch_num = 4
-    print('batch num:',batch_num)
+    # print('batch num:',batch_num)
     class scRNAdata(Dataset):
         def __init__(self, adata):            
             try:
@@ -538,8 +538,8 @@ def LearnPseudoMaker(rnadata):
                 miu0[i], miu1[i] = center[0], center[1]
                 loss1 = loss1 + torch.norm(model.deltaW[i], p=2)*10
                 loss += loss1 
-                if batch % 100 == 0 :
-                    print(loss.item(),losslist,miu0.var().item())
+                # if batch % 100 == 0 :
+                #     print(loss.item(),losslist,miu0.var().item())
 
             # feature = model(X).squeeze(-1)
             # loss = loss_fn1(feature, y, model.fc.weight)
@@ -562,13 +562,13 @@ def LearnPseudoMaker(rnadata):
 
         return loss, miu0.mean().item(), miu1.mean().item()
 
-    epochs = 100
+    epochs = 101
     loss0 = 10000
     for t in range(epochs):
         # print(f"Epoch {t+1}\n-------------------------------")
         loss, mean0, mean1 = train(
             dataload, model, loss_fn1, loss_fn2, optimizer)
-        if (t+1) % 20 == 0:
+        if (t+1) % 100 == 0:
             print(f"Epoch {t+1} loss: {loss:>7f}")
         if abs(loss-loss0) < 0.05 and loss < 0.01:
             break
@@ -634,7 +634,7 @@ def GmmFit(data, cutoff, val_cnt):
         
         fit = gmm.score(x)
 
-        print(col, fit, sep, partition, var)
+        # print(col, fit, sep, partition, var)
         score[col] = fit*0.2 + sep + partition*0.9 + np.min(var)*0.1
 
     return score
@@ -643,20 +643,20 @@ def GmmFit(data, cutoff, val_cnt):
 
 def dfs(crossnode, adtdata, rnadata, merge_cutoff, nodeid, ifretrain):
 
-    if  crossnode.modelnode.ind in nodeid  : # crossnode.modelnode.key == ('leaf',)
+    if len(nodeid) == 0 and crossnode.modelnode.key == ('leaf',) or crossnode.modelnode.ind in nodeid:
         crossnode = CrossSplit(adtdata.copy(), rnadata.copy(), merge_cutoff, crossnode=crossnode)
-        return crossnode       
+        return crossnode
+
     elif crossnode.modelnode.key == ('leaf',):
         return crossnode
     else:
         nodelist = crossnode.nodelist
 
-
-        if ifretrain:
-            if crossnode.modelnode.ind in nodeid: # 
-                print(crossnode.modelnode.key)
-                crossnode.modelnode.artificial_w, crossnode.modelnode.embedding, crossnode.modelnode.loss, crossnode.nodelist = retrain(
-                                crossnode.nodelist, rnadata.copy(), adtdata.copy(), crossnode.modelnode.key, crossnode.modelnode) # 
+        # if ifretrain:
+        #     if crossnode.modelnode.ind in nodeid: # 
+        #         print(crossnode.modelnode.key)
+        #         crossnode.modelnode.artificial_w, crossnode.modelnode.embedding, crossnode.modelnode.loss, crossnode.nodelist = retrain(
+        #                         crossnode.nodelist, rnadata.copy(), adtdata.copy(), crossnode.modelnode.key, crossnode.modelnode) # 
 
         lnodelist, rnodelist, ladt, radt, lrna, rrna = [], [], {}, {}, {}, {} 
         for i in range(len(nodelist)):
