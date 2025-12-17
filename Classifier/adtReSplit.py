@@ -269,7 +269,7 @@ def retrain(nodelist, rnadata, adtdata, feature, modelnode):  # gene?
     for i in range(len(nodelist)): 
         nodelist[i].artificial_w = w  + pd.Series(deltaW[i].detach().numpy().reshape(-1), index=genes)
         p = probs[i].detach()
-        pred =  pd.DataFrame(np.argmax(p, axis=1), index=rnadata[i].obs_names)
+        pred = pd.DataFrame(np.argmax(p, axis=1), index=rnadata[i].obs_names)
         nodelist[i].left_indices = pred[pred==0].index
         nodelist[i].right_indices = pred[pred==1].index
         # print(nodelist[i].artificial_w)
