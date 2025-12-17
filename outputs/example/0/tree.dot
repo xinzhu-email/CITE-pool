@@ -1,0 +1,19 @@
+digraph Tree {node [shape=box, style="filled, rounded", color="black", fontname=helvetica] ;edge [fontname=helvetica] ;0 [label="0_CD86\n7043\n[1, 2, 3]",fillcolor="#ff9966ff",fontsize=25];1 [label="1_CC_1\n4388\n[1, 2, 3]",fillcolor="#ffccccff",fontsize=25];0 -> 1 [labeldistance=3, label = "-1.23
+",fontsize=25, color=black, style=solid];2 [label="2_CD16\n2655\n[1, 2, 3]",fillcolor="#ffccccff",fontsize=25];0 -> 2 [labeldistance=3, label = "6.32
+",fontsize=25, color=black, style=solid];3 [label="3_leaf\n1316",fillcolor="#127c39",fontsize=20];1 -> 3 [labeldistance=3, label = "1.71
+",fontsize=25, color=black, style=solid];4 [label="4_CD45RA\n3072\n[1, 2, 3]",fillcolor="#ffccccff",fontsize=25];1 -> 4 [labeldistance=3, label = "-1.1
+",fontsize=25, color=black, style=solid];5 [label="5_leaf\n2273",fillcolor="#006d2c",fontsize=20];2 -> 5 [labeldistance=3, label = "-0.47
+",fontsize=25, color=black, style=solid];6 [label="6_leaf\n382",fillcolor="#369f54",fontsize=20];2 -> 6 [labeldistance=3, label = "1.44
+",fontsize=25, color=black, style=solid];9 [label="9_CD109\n1979\n[1, 2, 3]",fillcolor="#ffccccff",fontsize=25];4 -> 9 [labeldistance=3, label = "-0.64
+",fontsize=25, color=black, style=solid];10 [label="10_mouseCD49f\n1093\n[1, 2, 3]",fillcolor="#ffccccff",fontsize=25];4 -> 10 [labeldistance=3, label = "0.79
+",fontsize=25, color=black, style=solid];19 [label="19_leaf\n504",fillcolor="#2f974e",fontsize=20];9 -> 19 [labeldistance=3, label = "-1.44
+",fontsize=25, color=black, style=solid];20 [label="20_CD109\n1475\n[1, 2, 3]",fillcolor="#ffccccff",fontsize=25];9 -> 20 [labeldistance=3, label = "0.12
+",fontsize=25, color=black, style=solid];21 [label="21_leaf\n1042",fillcolor="#19833e",fontsize=20];10 -> 21 [labeldistance=3, label = "-0.26
+",fontsize=25, color=black, style=solid];22 [label="22_leaf\n51",fillcolor="#88ce87",fontsize=20];10 -> 22 [labeldistance=3, label = "1.41
+",fontsize=25, color=black, style=solid];41 [label="41_TCR_Va7_2\n164\n[1, 2, 3]",fillcolor="#ffccccff",fontsize=25];20 -> 41 [labeldistance=3, label = "-1.37
+",fontsize=25, color=black, style=solid];42 [label="42_leaf\n1311",fillcolor="#127c39",fontsize=20];20 -> 42 [labeldistance=3, label = "0.15
+",fontsize=25, color=black, style=solid];83 [label="83_TCR_Va7_2\n163\n[1, 2, 3]",fillcolor="#ffccccff",fontsize=25];41 -> 83 [labeldistance=3, label = "2.0
+",fontsize=25, color=black, style=solid];84 [label="84_leaf\n0",fillcolor="#f7fcf5",fontsize=20];41 -> 84 [labeldistance=3, label = "0.0
+",fontsize=25, color=black, style=solid];167 [label="167_leaf\n0",fillcolor="#f7fcf5",fontsize=20];83 -> 167 [labeldistance=3, label = "0.97
+",fontsize=25, color=black, style=solid];168 [label="168_leaf\n122",fillcolor="#63bc6e",fontsize=20];83 -> 168 [labeldistance=3, label = "-0.73
+",fontsize=25, color=black, style=solid];}

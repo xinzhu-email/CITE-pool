@@ -34,6 +34,7 @@ def main(data_path, output_path,
 
     ## Load Files
     j, inbatch = 0, []
+
     for i in range(len(data_path)):
         jpre = j
         adata = sc.read_h5ad(data_path[i])
@@ -43,7 +44,7 @@ def main(data_path, output_path,
             adtdata[j] = data[:,data.var['feature_types']=='Antibody Capture']
             
             rnadata[j] = data[:,data.var['feature_types']=='Gene Expression']
-            
+
             x = rnadata[j][:31,:20].X.sum()
             if x == int(x):
                 # print(s)
@@ -93,6 +94,7 @@ def main(data_path, output_path,
             node.ind = ind
             if crossnode.left is not None:
                 node.left = inner_dfs(crossnode.left.nodelist[i], crossnode.left, i, 2*ind+1) 
+            if crossnode.right is not None:
                 node.right = inner_dfs(crossnode.right.nodelist[i], crossnode.right, i, 2*ind+2)
         return node
 
@@ -162,7 +164,7 @@ def parse_arguments():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(description='Run CITE-pool analysis')
     
-    parser.add_argument('--path', nargs='+', required=True,
+    parser.add_argument('--data_path', nargs='+', required=True,
                        help='List of input data file paths')
     parser.add_argument('--output_path', type=str, required=True,
                        help='Output directory path')
@@ -170,7 +172,7 @@ def parse_arguments():
                        help='Bimodal overlap threshold, default 0.1')
     parser.add_argument('--current_treepath', type=str, default=None,
                        help='Path to existing tree for continued training')
-    parser.add_argument('--FinetuneNonde', nargs='+', type=int, default=[],
+    parser.add_argument('--FinetuneNode', nargs='+', type=int, default=[],
                        help='List of nodes to fine-tune')
     parser.add_argument('--ifretrain', action='store_true',
                        help='Whether to retrain')
@@ -187,6 +189,6 @@ if __name__ == "__main__":
         output_path=args.output_path,
         cutoff=args.cutoff,
         current_treepath=args.current_treepath,
-        FinetuneNonde=args.FinetuneNonde,
+        FinetuneNode=args.FinetuneNode,
         ifretrain=args.ifretrain
     )

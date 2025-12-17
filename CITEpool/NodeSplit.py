@@ -36,7 +36,7 @@ def RNApp(rnadata=None, nodelist=None):
     # cellnum = [data.shape[0] for data in list(rnadata.values())]
     nrepeat = 1
     ncomp = 5
-    # adata = rnadata[0]
+    adata = []
     # adata = sc.concat(rnadata.values(),axis=0)
     for i in list(rnadata.keys()):
 
@@ -50,7 +50,7 @@ def RNApp(rnadata=None, nodelist=None):
         if len(rnadata[i]) == 0 :
             continue
 
-        if i == 0:
+        if len(adata) == 0:
             adata = rnadata[i]
         else:
             adata = sc.concat([adata, rnadata[i]],axis=0)
@@ -175,11 +175,7 @@ def CrossSplit(adtdata=None, rnadata=None, merge_cutoff=0.1, crossnode=None, run
                 rnadata[i] = rnadata[i][indices,:]
                 guidedata[i] = guidedata[i].loc[indices,:]
 
-        
-        if len(rnadata[i]) == 0 or len(guidedata[i]) == 0:
-            nodelist.append(None)
-            
-            continue
+    
         
         node = BTree(('leaf',))
 
@@ -238,7 +234,7 @@ def CrossSplit(adtdata=None, rnadata=None, merge_cutoff=0.1, crossnode=None, run
             traindata, genes = TrainData(rnadata.copy(), guidedata, best_feature, nodelist)
             w, m0, m1, loss, deltaW, probs = LearnPseudoMaker(traindata.copy())
 
-            if loss < 10:
+            if loss < 25:
                 nodelist, converge = assign(w, deltaW, probs, nodelist, traindata.copy(), genes, best_feature)
                 if converge:
                     crossnode = CrossNode(nodelist)
@@ -312,11 +308,16 @@ def TrainData(rnadata, guidedata, best_feature, nodelist):
     crossgenes = []
     traindata = {}
     for i in range(len(guidedata)):
+        # print(rnadata[i].shape, guidedata[i].shape)
+        
+        if len(rnadata[i]) == 0:
+            continue
         traindata[i] = rnadata[i].copy()
         if best_feature not in nodelist[i].score_dict.keys():
-            traindata[i].obsm['marker'] = np.zeros(traindata[i].shape[0]).T
+            traindata[i].obsm['marker'] = np.zeros(traindata[i].shape[0])
             continue
-        traindata[i].obsm['marker'] = np.array(guidedata[i].loc[traindata[i].obs_names,best_feature].values)
+
+        traindata[i].obsm['marker'] = np.array(guidedata[i].loc[:,best_feature].values)
         genes = gene_selection(traindata[i].copy())
         crossgenes.extend(genes)
 
@@ -335,19 +336,23 @@ def TrainData(rnadata, guidedata, best_feature, nodelist):
 def assign(w, deltaW, probs, nodelist, traindata, genes, best_feature):
     w = pd.Series(w.detach().numpy().reshape(-1), index=genes)
     pmean = []
+    deltaW = {key: deltaW[i] for i, key in enumerate(probs.keys())}
     for i in range(len(nodelist)):
+        if i not in traindata.keys():
+            nodelist[i].key = best_feature 
+            continue
         nodelist[i].key = best_feature 
         nodelist[i].artificial_w = w  + pd.Series(deltaW[i].detach().numpy().reshape(-1), index=genes)
         p = probs[i]
         pmean.append(p.mean(0))
-        print(p.mean(0))
+        # print(p.mean(0))
         pred = pd.Series(np.argmax(p, axis=1), index=traindata[i].obs_names)
         # print(pred[pred==0])
         nodelist[i].left_indices = pred[pred==0].index
         nodelist[i].right_indices = pred[pred==1].index
         nodelist[i].probs = p
         # print('left/right = ',len(nodelist[i].left_indices),'/', len(nodelist[i].right_indices))
-    print(np.mean(pmean,axis=0))
+    # print(np.mean(pmean,axis=0))
     # if np.mean(pmean,axis=0).min() < 0.1:
     #     return nodelist, False
     return nodelist, True
@@ -505,7 +510,7 @@ def LearnPseudoMaker(rnadata):
             h_norm = torch.norm(h, p=2)
             # print(l_classify.shape, l_correlation.shape, center.sum())
             # l_correlation = 0
-            l = l_classify + l_correlation*2 + torch.relu(1-center.var())*10 + variance*0.01 + entropy + \
+            l = l_classify + l_correlation*2 + torch.relu(1-center.var())*10 + variance*0.01 + entropy*0.5 + \
                  center.sum()*0.001 + wL1*0.01 + h_norm*0.001
 
             return l, center, [probsct.detach(), l_correlation.detach(), center.detach(),   l_classify.item(), entropy.item()]
@@ -577,7 +582,7 @@ def LearnPseudoMaker(rnadata):
     weight = model.fc.weight[0,:]
     deltaW = model.deltaW
     probs = {}
-    for i in range(len(rnadata)):
+    for i in rnadata.keys():
         probs[i] = scRNAdata(rnadata[i].copy()).data.dot(model.fc.weight[1:,:].detach().numpy().T) 
         probs[i] = torch.softmax(torch.tensor(probs[i]),dim=1).detach()
         
@@ -601,7 +606,7 @@ def GmmFit(data, cutoff, val_cnt):
         # if col in ['CD28']:
         #     print('val_cnt: ',val_cnt[col],min(min(x.shape[0]/20, 70), x.shape[0]),diptest.dipstat(np.array(x.iloc[:, 0])))
 
-        if val_cnt[col] < min(min(x.shape[0]/20, 60), x.shape[0]):
+        if val_cnt[col] < min(min(x.shape[0]/20, 40), x.shape[0]):
             # print('val_cnt: ',col, '=', val_cnt[col])
             continue
         dip = diptest.dipstat(np.array(x.iloc[:, 0]))
@@ -635,7 +640,7 @@ def GmmFit(data, cutoff, val_cnt):
         fit = gmm.score(x)
 
         # print(col, fit, sep, partition, var)
-        score[col] = fit*0.2 + sep + partition*0.9 + np.min(var)*0.1
+        score[col] = fit*0.2 + sep + partition*0.8 + np.min(var)*0.1
 
     return score
 
