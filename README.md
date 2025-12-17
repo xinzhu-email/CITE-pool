@@ -25,7 +25,7 @@ CITE-pool provides a principled alternative to existing methods,
 drawing insights into the complex transcriptomic landscape and cellular heterogeneity.
 
 ## Run
-python RunCITEpool.py --data_path ./datasets --output_path ./output 
+python CITEpool/RunCITEpool.py --data_path ./datasets --output_path ./output 
 
 <!-- <img src="readme_figs/taxonomy.png" alt="taxonomy" style="zoom:67%;" /> -->
 
