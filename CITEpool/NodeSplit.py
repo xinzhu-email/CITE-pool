@@ -222,7 +222,7 @@ def CrossSplit(adtdata=None, rnadata=None, merge_cutoff=0.1, crossnode=None, run
         feature_score = pd.Series(index=cross_score.keys())
         for feature in cross_score.keys():
             feature_score[feature] = np.mean(cross_score[feature]) + \
-                 np.max(cross_score[feature]) + 2*len(cross_score[feature])/len(guidedata)
+                 np.max(cross_score[feature]) + 1*len(cross_score[feature])/len(guidedata)
 
         # print(feature_score)
         best_feature = feature_score.index[feature_score.argmax()] 
@@ -567,7 +567,7 @@ def LearnPseudoMaker(rnadata):
 
         return loss, miu0.mean().item(), miu1.mean().item()
 
-    epochs = 101
+    epochs = 401
     loss0 = 10000
     for t in range(epochs):
         # print(f"Epoch {t+1}\n-------------------------------")
@@ -601,7 +601,7 @@ def GmmFit(data, cutoff, val_cnt):
         col = data.columns[i]
         x = data.iloc[:,[i]]
 
-        if col in ['CD158','CD158e1','CD146','CD62L','CD2']:
+        if col in ['CD158','CD158e1','CD146','CD62L','CD2','CD109']:
             continue
         # if col in ['CD28']:
         #     print('val_cnt: ',val_cnt[col],min(min(x.shape[0]/20, 70), x.shape[0]),diptest.dipstat(np.array(x.iloc[:, 0])))
@@ -639,8 +639,8 @@ def GmmFit(data, cutoff, val_cnt):
         
         fit = gmm.score(x)
 
-        # print(col, fit, sep, partition, var)
-        score[col] = fit*0.2 + sep + partition*0.8 + np.min(var)*0.1
+        print(col, fit, sep, partition, var)
+        score[col] = fit*0.2 + sep + partition*0.5 + np.min(var)*0.1
 
     return score
 
