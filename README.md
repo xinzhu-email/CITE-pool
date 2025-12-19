@@ -1,10 +1,10 @@
-# CITE-pool: Grounded Integration of Single-cell Multi-omics Data with CITE-pool
+# Grounded Integration of Single-cell Multi-omics Data with CITE-pool
 
 <img src="readme_figs/CITE-pool overview.png"  alt="CITE-pool" /> 
 
 
 
-Grounded Integration of Single-cell Multi-omics Data with CITE-pool
+Grounded Integration of Single-cell Multi-omics Data with CITEpool
 
 ## Description
 
