@@ -25,12 +25,13 @@ CITE-pool provides a principled alternative to existing methods,
 drawing insights into the complex transcriptomic landscape and cellular heterogeneity.
 
 ## Run
-# Option 1: Run in Terminal
-python CITEpool/RunCITEpool.py --data_path ./datasets --output_path ./output 
+### Option 1: Run in Terminal
+python CITEpool/RunCITEpool.py --data_path ./datasets/1/data.h5ad ./datasets/2/data.h5ad --output_path ./output 
 
-# Option 2: Run in Jupyter Notebook
-Refer to the file Tutorial.ipynb
-[An 3-batch example for CITE-seq data integration with CITE-pool](./Tutorial.ipynb)
+### Option 2: Run in Jupyter Notebook
+Refer to the file Tutorial.ipynb:
+
+[An example for three CITE-seq datasets integration with CITE-pool](./Tutorial.ipynb)
 
 <!-- <img src="readme_figs/taxonomy.png" alt="taxonomy" style="zoom:67%;" /> -->
 
