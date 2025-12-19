@@ -33,6 +33,8 @@ Refer to the file Tutorial.ipynb:
 
 [An example for three CITE-seq datasets integration with CITE-pool](./Tutorial.ipynb)
 
+jupyter nbconvert --to markdown ./Tutorial.ipynb
+
 <!-- <img src="readme_figs/taxonomy.png" alt="taxonomy" style="zoom:67%;" /> -->
 
 <!-- ## Usage
