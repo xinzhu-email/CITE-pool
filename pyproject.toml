@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "citepool"
+version = "3.0.1"
+description = "Protein-marker cell identities, constrained RNA representation learning, and conserved RNA refinement"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "anndata",
+  "diptest",
+  "igraph",
+  "leidenalg",
+  "matplotlib",
+  "numpy",
+  "pandas",
+  "scanpy",
+  "scikit-learn",
+  "scikit-misc",
+  "scipy",
+  "scvi-tools>=1.3,<1.4",
+  "torch",
+]
+
+[project.optional-dependencies]
+benchmark = ["scib-metrics"]
+dev = ["build", "pytest"]
+
+[project.scripts]
+citepool = "citepool.__main__:main"
+citepool-baseline = "citepool_baseline.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["citepool", "citepool.*", "citepool_baseline"]
+
+[tool.setuptools.package-data]
+citepool = ["py.typed", "identity/_engine/PROVENANCE.md"]

@@ -1,298 +1,203 @@
-# Grounded Integration of Single-cell Multi-omics Data with CITE-pool
+# CITEpool
 
-<img src="readme_figs/CITE-pool overview.png"  alt="CITE-pool" /> 
+CITEpool infers cell identity from discrete protein-marker configurations,
+learns an identity-constrained RNA representation, and refines identities
+through conserved RNA structure. Its protein identity engine (derived from
+CytoFuse) is included inside CITEpool; no separate CytoFuse installation or
+source checkout is needed.
 
+## Installation
 
+Python 3.10 or newer is required. Install the package from this directory:
 
-Grounded Integration of Single-cell Multi-omics Data with CITEpool
-
-## Description
-
-Integrating single-cell datasets across multiple sources and conditions requires principled,
-explicit methods that ground cell identity in marker gene expression rather than implicit latent representations.
-Existing integration approaches project cells into opaque latent spaces where integration logic cannot be directly inspected,limiting biological interpretability.
-We propose CITE-pool, a cross-modal framework that integrates CITE-seq and scRNA-seq data through an explicit,
-interpretable identity space where each dimension represents a cell-population partition defined by cross-batch-conserved marker gene signatures.
-When surfaceome markers are incomplete, CITE-pool identifies cross-batch-conserved transcriptomic co-expressions to expand the identity space while preserving biological interpretability.
-Compared to MultiVI, MIDAS, sciPENN and scMaMoT, CITE-pool achieves superior cross-batch consistency,
-robustness to sparse or mismatched surface markers,
-preservation of mismatched cell types,
-and uniquely enables discovery of novel identity markers beyond the CITE-seq antibody panel.
-In cross-condition analyses, CITE-pool disentangles identity-defining genes from condition-responsive genes,
-clarifying the transcriptomic basis of cellular heterogeneity.
-By making integration decisions transparent and grounded in biology,
-CITE-pool provides a principled alternative to existing methods,
-drawing insights into the complex transcriptomic landscape and cellular heterogeneity.
-
-## Run
-### Option 1: Run in Terminal
-python CITEpool/RunCITEpool.py --data_path ./datasets/1/data.h5ad ./datasets/2/data.h5ad --output_path ./output 
-
-### Option 2: Run in Jupyter Notebook
-Refer to the file Tutorial.ipynb:
-
-[An example for three CITE-seq datasets integration with CITE-pool](./Tutorial.ipynb)
-
-## Run CITE-pool (Integration and Clustering)
-
-
-```python
-import scanpy as sc 
-import pandas as pd
-import RunCITEpool
-import numpy as np
+```bash
+pip install .
 ```
 
+Or install the distributable wheel:
 
-```python
-data_path = ['./datasets/example/1/data.h5ad','./datasets/example/2/data.h5ad','./datasets/example/3/data.h5ad']
-output_path = './outputs/example/'
-cutoff = 0.1
-current_treepath = None#'./outputs/example/'
-FinetuneNonde = [5]
-ifretrain = False
-
-
-RunCITEpool.main(data_path, output_path, cutoff, 
-                current_treepath, FinetuneNonde, ifretrain)
-
+```bash
+pip install /path/to/citepool-3.0.1-py3-none-any.whl
 ```
 
-## Results Visualization
+For development use `pip install -e .`. Benchmark scoring is optional:
+`pip install '.[benchmark]'`. The training integration currently supports
+scvi-tools 1.3.x; this is declared in the package dependencies.
 
-### Loading Data
+## Run the bundled section-1 test data
 
-#### Option 1: Load datasets under different folders in data_path
+A fresh clone includes one complete 72-protein, two-batch section-1 input at
+`data/section1/intersection/expr1.h5ad`.  It is the only dataset distributed
+with this repository.  Install the package, then run:
 
-
-```python
-## Load and concat RNA data
-inbatch, adtdata, rnadata = [1], {}, {}
-for i in range(len(data_path)):
-    data = sc.read_h5ad(data_path[i])
-    batch = data.obs['batch'].cat.categories
-    # adtdata[i] = data[:,data.var['feature_types']=='Antibody Capture']     
-    rnadata[i] = data[:,data.var['feature_types']=='Gene Expression']
-    rnadata[i].obs['pred'] = None
-
-
-    for j in range(len(batch)):
-        file = str(i+1)+'/'+str(j+np.sum(inbatch))
-        leaflabel = pd.read_csv(output_path+file+'/leaf_labels.csv',index_col=0)
-        treelabel = pd.read_csv(output_path+file+'/treelabel.csv',index_col=0)
-        embedding = pd.read_csv(output_path+file+'/embedding.csv',index_col=0)
-        indices = rnadata[i].obs_names.isin(leaflabel.index)
-        rnadata[i].obs['pred'][indices] = leaflabel['Label']
-        
-        if j == 0:
-            rnadata[i].obsm['treelabel'] = np.zeros((rnadata[i].shape[0],embedding.shape[1]))
-            rnadata[i].obsm['embedding'] = np.zeros((rnadata[i].shape[0],embedding.shape[1]))
-        rnadata[i].obsm['treelabel'][indices] = treelabel.values
-        rnadata[i].obsm['embedding'][indices] = embedding.values
-
-
-    inbatch.append(j+1)
-
-adata = sc.concat(rnadata.values(), axis=0, join='inner')
-
-# adata.write_h5ad(output_path+'reuslt.h5ad')
+```bash
+python experiments/section1/run.py --output results/section1_expr1
 ```
 
-#### Option 2: If datasets concatenated, directly load results
+The command runs protein identity inference, RNA representation learning and
+RNA refinement.  Use `--device cpu` when no CUDA device is available, or
+`--resolution 1.5` to change the protein initialization resolution.  The
+published experiment settings are in
+[`experiments/section1/parameters.json`](experiments/section1/parameters.json).
 
+## Model API
 
-```python
-import os
-adata = sc.read_h5ad(output_path+'reuslt.h5ad')
-adata.obs['pred'] = None
-datasets_path = os.listdir(output_path)
-
-for dataset in datasets_path:
-    if dataset.isdigit() == False or dataset == '0':
-        continue
-    
-    filename = os.listdir(output_path+dataset)
-    if dataset == '1':
-        adata.obsm['treelabel'] = np.zeros((adata.shape[0],embedding.shape[1]))
-        adata.obsm['embedding'] = np.zeros((adata.shape[0],embedding.shape[1]))
-
-    for file in filename:
-        if file.isdigit() == False:
-            continue
-        leaflabel = pd.read_csv(output_path+dataset+'/'+file+'/leaf_labels.csv',index_col=0)
-        treelabel = pd.read_csv(output_path+dataset+'/'+file+'/treelabel.csv',index_col=0)
-        embedding = pd.read_csv(output_path+dataset+'/'+file+'/embedding.csv',index_col=0)
-
-        indices = adata.obs_names.isin(leaflabel.index)
-
-        adata.obs['pred'].loc[indices] = leaflabel['Label']
-        adata.obsm['treelabel'][indices] = treelabel.values
-        adata.obsm['embedding'][indices] = embedding.values
-
-
-```
-
-### Integrated data umap visualization with embedding
-
+The lifecycle follows the familiar `setup_anndata → model → train → getters`
+pattern. Input RNA and ADT must be raw counts. For RNA AnnData with ADT in obsm:
 
 ```python
-sc.set_figure_params(facecolor='white')
-sc.pp.neighbors(adata, n_neighbors=10, use_rep='embedding', key_added='embedding')
-sc.tl.umap(adata, neighbors_key='embedding')
-sc.pl.umap(adata, color=['pred','subtype','batch'],wspace=0.38)
+import anndata as ad
+from citepool.model import CITEPool
+
+adata = ad.read_h5ad("rna_with_adt.h5ad")
+CITEPool.setup_anndata(
+    adata,
+    batch_key="batch",
+    layer="counts",                         # omit if X contains raw counts
+    protein_expression_obsm_key="protein_counts",
+    protein_names_uns_key="protein_names", # omit for DataFrame protein input
+    protein_measurement_mask_obsm_key="protein_measurement_mask",
+)
+model = CITEPool(adata, initial_resolution=1.0)
+model.train("my_run", device="auto")
+
+latent = model.get_latent_representation()   # cells × latent dimensions
+identity = model.predict()                  # named pandas Series
+probability = model.predict(soft=True)      # cells × identities, row sums = 1
+protein = model.get_reconstructed_protein() # cells × proteins, translated CLR scale
+weights = model.get_gene_weights()          # direct RNA classifier coefficients
+
+model.save("saved_model")
+restored = CITEPool.load("saved_model")
 ```
 
+`layer=None` selects X. Protein DataFrame columns supply marker names; an
+array requires names in uns. A missing protein in a mosaic panel must be
+marked unmeasured in the measurement mask, rather than encoded as an observed
+zero. The mask has shape cells × proteins; combined-feature input also accepts
+cells × all features. Each cell must have at least one measured protein.
 
-    
-![png](Tutorial_files/Tutorial_10_0.png)
-    
-
-
-### Visualization of each embedding
-
+For an existing combined RNA/ADT H5AD (such as section1 input), use:
 
 ```python
-sc.pl.embedding(adata, basis='embedding', components=['1,2','3,4',],color=['subtype'],wspace=0.38)
+model = CITEPool("combined_counts.h5ad", initial_resolution=1.5)
+model.train("my_run", device="cuda")
 ```
 
+Combined input requires `var["feature_types"]` values `"Gene Expression"` and
+`"Antibody Capture"`. To register an in-memory combined object, omit
+`protein_expression_obsm_key`. A custom feature-type key can be registered
+with `feature_type_key=...`; any batch column can be registered via `batch_key`.
+The internal conversion preserves RNA/protein counts and measurement masks,
+and does not overwrite the user's expression matrix.
 
-    
-![png](Tutorial_files/Tutorial_12_0.png)
-    
+The model getters operate on the fitted cells in input order. `load` also
+opens completed legacy workflow directories, without retraining. `save` copies
+the complete run, including weights, input counts, identity tables, and
+configuration; it rejects an existing destination. Both training and saving
+require an explicit output location. The current API does not implement query
+transfer or resuming optimization. Protein predictions are in translated CLR
+units, rather than raw counts.
 
+## Three algorithm modules
 
-## Advanced Analysis
+All actual implementations live under `src/citepool`, organized into these three modules:
 
-### Bimodal property of Pseudo-marker at each node layer
+| Scientific component | Public module | Entry points |
+| --- | --- | --- |
+| Cell identity from discrete protein-marker configurations | `citepool.identity` | `infer_identity`, `prepare_protein_targets` |
+| Identity-constrained RNA representation learning | `citepool.representation` | `learn_representation` |
+| Refining cell identity through conserved RNA structure | `citepool.refinement` | `refine_identity` |
 
+Each stage accepts a typed configuration. This lets users run a stage on
+existing artifacts without going through the complete model lifecycle:
 
 ```python
-tree_label = pd.DataFrame(adata.obsm['treelabel'], index=adata.obs_names, columns=treelabel.columns)
+from pathlib import Path
+from citepool.identity import ProteinIdentityConfig, infer_identity
 
-nbatch = 6
-import matplotlib.pyplot as plt
-import numpy as np
-blue_colors = [plt.cm.Blues((x+1)/nbatch) for x in range(nbatch)]  
-red_colors =[plt.cm.Reds((x+1)/nbatch) for x in range(nbatch)]    
-
-fig, axes = plt.subplots(2,4, figsize=(16, 6))
-for i in range(tree_label.shape[1]):#
-    node = tree_label.columns[i]
-    subdata = adata[tree_label[node]!=0]
-    batches = sorted(subdata.obs['batch'].unique())  
-    # if i != 1:
-    #     continue
-    
-    for batch_idx, batch in enumerate(batches):
-        batch_data = subdata[subdata.obs['batch'] == batch]
-        # if batch not in ['P8']:
-        #     continue
-        
-        
-        mask_neg = (tree_label[node][batch_data.obs.index] == -1)
-        axes[int(i/4), int(i%4)].hist(
-            batch_data.obsm['embedding'][mask_neg, i],
-            bins=40, alpha=0.5,
-            color=blue_colors[batch_idx],
-            # label=f'{batch} (label=-1)' if batch_idx == 0 else ""
-        )
-        
-        
-        mask_pos = (tree_label[node][batch_data.obs.index] == 1)
-        axes[int(i/4), int(i%4)].hist(
-            batch_data.obsm['embedding'][mask_pos, i],
-            bins=40, alpha=0.5,
-            color=red_colors[batch_idx],
-            # label=f'{batch} (label=1)' if batch_idx == 0 else ""
-        )
-    axes[int(i/4), int(i%4)].set_title('node '+node)
-    # axes[int(i/4), int(i%4)].legend()
-
-plt.tight_layout()
-plt.show() 
+summary = infer_identity(ProteinIdentityConfig(
+    input_h5ad=Path("combined_counts.h5ad"),
+    output_dir=Path("protein_identity"),
+    initial_resolution=1.0,
+    device="cpu",
+))
 ```
 
+`RepresentationConfig` describes the raw RNA input, identity-table directory,
+protein targets, model settings, and output directory. `RefinementConfig`
+describes the raw input, first fitted embedding, identity tables, and RNA split
+settings. Stage-three `refine_identity` exports revised constraints; the full
+`CITEPool.train()` API subsequently refits the representation with them.
+See [docs/api.md](docs/api.md) for exact artifact contracts and configuration examples.
 
-    
-![png](Tutorial_files/Tutorial_15_0.png)
-    
+## Defaults and advanced settings
 
+Defaults match the final section1/section2 configuration: all measured
+proteins, taxonomy identity readout, initial resolution 1.0, RNA refinement
+on, protein seed 0, training seed 2026, and SCVI/SCANVI epochs 100/50.
+RNA separation cutoff is 0.5, dip cutoff 0.00495, BIC gain per cell 0.1
+for 1D and 2D candidates, fragment threshold 50, minimum child size 50, and
+minimum batch size 100. Split support is `max(1, total_batches // 2)` and
+remains fixed through recursion (2/3/7 batches require 1/1/3 supporters).
+Biological ground-truth labels are optional evaluation annotations; they are
+not required for identity inference or training. No additional hard lineage,
+null-hypothesis, or differential-expression split guard has been added.
 
-<!-- <img src="readme_figs/taxonomy.png" alt="taxonomy" style="zoom:67%;" /> -->
+```python
+model.train(
+    "custom_run", device="cpu", scvi_epochs=100, scanvi_epochs=50,
+    training_options={"batch_size": 512, "n_latent": 32},
+    refinement_options={"dip_cutoff": 0.00495, "separation_cutoff": 0.5,
+                        "two_d_bic_gain_per_cell": 0.1},
+)
+```
 
-<!-- ## Usage
+Option names are the fields of `RepresentationConfig` and `RefinementConfig`.
+Workflow-owned input/output fields and duplicated explicit arguments are
+rejected. To disable stage-three refinement, construct the model with
+`enable_rna_refinement=False`.
 
-### Input
+The functional API remains available: `citepool.fit(input_h5ad, output_dir)`
+or `citepool.run(WorkflowConfig(...))`, returning a `CITEpoolRun` artifact
+handle. The command line is `citepool run --input ... --output ...` or
+`python -m citepool run ...`; `citepool identity ...` runs only stage one.
+Legacy `citepool_baseline` imports and command names continue to work through
+one compatibility namespace under `src/citepool_baseline`. Historical artifact names are retained to support
+existing runs. Experiments and result directories are outside this package.
 
-The input of CITE-sort should be a csv file with CLR normalized CITE-seq ADT data (row: droplet/sample, col: ADT/feature). 
+## Validation
 
-### Run
+Run the regression and API tests with:
 
-`python runCITEsort.py ADT_clr_file -c 0.1 -o ./CITEsort_out`
+```bash
+python -m unittest discover -s tests -v
+```
 
-- -c, cutoff, the similarity threshold of merging Gaussian components; the default is 0.1. It should be a real value between 0 and 1. The bigger value leads to split more aggressively, and ends in a more complicated tree.
-- -o, output, the path to save ouput files. If not specified, CITE-sort will create a folder "./CITEsort_out" in the current directory.
+The package includes runnable examples in [examples](examples). Scientific
+API contracts are documented in
+[docs/api.md](docs/api.md); source provenance is recorded in
+[src/citepool/identity/_engine/PROVENANCE.md](src/citepool/identity/_engine/PROVENANCE.md).
 
-`python runCITEsort.py ADT_clr_file -c 0.1 -o ./CITEsort_out --compact`
+## Source layout
 
-- --compact, adding this parameter will output a compact tree. 
+```text
+citepool_baseline/
+  pyproject.toml
+  README.md
+  src/
+    citepool/                 the only algorithm implementation
+      model/                  setup, train, getters, save/load
+      identity/               discrete protein-marker identities
+      representation/         constrained RNA learning
+      refinement/             conserved RNA structure
+      _utils/                 internal shared helpers
+      benchmark/              optional historical benchmark adapter
+    citepool_baseline/        two-file legacy namespace; no algorithm copies
+  tests/
+  examples/
+  docs/
+```
 
-See analysis [tutorial](https://github.com/QiuyuLian/CITE-sort/blob/master/AnalysisTutorial.ipynb) for visualizing each node.  
-
-### Outputs
-
-- tree.pdf, the vasualized sort tree of input dataset created by CITE-sort.
-  - There are three rows in each inner node:
-    - "**n_marker(s)**": **n** is the node ID, which is obtained by Breath First Search. **marker(s)**, the surface markers next to the ID, is the subspace selected to subdivide the current population.
-    - "**Num: xxx**": is the number of droplets in current population.
-    - "**(a|b)**": **b** denotes the number of components determined by BIC in the selected surface marker subspace. **a** denotes the number of component-complexes after merging with a certain threshold. Generally, **a** <= **b**. **a** = **b** when all components can not be merged with current threshold.
-  - The numbers next to the arrows denote the mean of the selected markers in the partition the arrow stands for. In leaf nodes, the means of all markers are marked if not using '--compact'. As CITE-sort takes CLR-format values as input, these numbers could be positive or negative. 
-- leaf_labels.csv, the labels of each droplets in the sort tree.
-- tree.pickle, the tree structure recording the main clusteirng infromation of input dataset.
-- tree.dot, the auxiliary file to plot the tree.
-
-## Examples
-
-We provide 3 in-house and 5 public CITE-seq datasets in "./datasets":
-
-- [PBMC_1k (10X Genomics)](https://support.10xgenomics.com/single-cell-gene-expression/datasets/3.0.0/pbmc_1k_protein_v3)
-- [PBMC_1k_b (In house)](https://github.com/QiuyuLian/CITE-sort/tree/master/datasets)
-- [PBMC_2k (In house)](https://github.com/QiuyuLian/CITE-sort/tree/master/datasets)
-- [PBMC_5k (10X Genomics)](https://support.10xgenomics.com/single-cell-gene-expression/datasets/3.0.2/5k_pbmc_protein_v3)
-- [PBMC_8k (10X Genomics)](https://support.10xgenomics.com/single-cell-gene-expression/datasets/3.0.0/pbmc_10k_protein_v3) 
-- [MALT_8k (10X Genomics)](https://support.10xgenomics.com/single-cell-gene-expression/datasets/3.0.0/malt_10k_protein_v3)
-- [CBMC_8k (GSE100866)](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE100866)
-- [PBMC_16k (with cell hashing) (In house)](https://github.com/QiuyuLian/CITE-sort/tree/master/datasets)
-
-### Example Commond
-
-**Example 1**: The PBMC_2k dataset is used as an example of beginning with CLR-format data.
-
-`python preCITEsort.py ./datasets/PBMC_2k_ADT_clr.csv `
-
-- plot histgram of each marker.
-
-`python runCITEsort.py ./datasets/PBMC_2k_ADT_clr.csv `
-
-- run CITE-sort and output a sort tree.
-
-**Example 2**: ADTs from [GSE143363](https://github.com/QiuyuLian/CITE-sort/blob/master/datasets) are extracted from [GEO](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE143363) and used as an example of begining with  raw counts.
-
-`python preCITEsort.py ./datasets/GSE143363_ADT_Dx_count.csv --CLR `
-
-- transform data into CLR format and plot histgram of each marker.
-
-`python runCITEsort.py ./CITEsort_out/data_clr.csv --compact`
-
-- run CITE-sort and output a sort tree in compact way.
-
-## Authors
-
-Qiuyu Lian\*, Hongyi Xin\*, Jianzhu Ma, Liza Konnikova, Wei Chen\#, Jin Gu\#,Kong Chen\#
-
-## Maintainer
-
-Qiuyu Lian, Hongyi Xin. -->
-
-
-
+Build/cache artifacts and old documentation are outside this source directory.
+New release archives are written to `CITEpool/releases/citepool/3.0.1/`.

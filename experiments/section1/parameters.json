@@ -1,0 +1,15 @@
+{
+  "data": "data/section1/intersection/expr1.h5ad",
+  "initial_resolution": 1.0,
+  "all_proteins": true,
+  "rna_refinement": true,
+  "rna_refinement_overrides": {
+    "dip_cutoff": 0.00495,
+    "separation_cutoff": 0.5,
+    "small_fragment_max_cells": 50,
+    "two_d_bic_gain_per_cell": 0.1,
+    "one_d_bic_gain_per_cell": 0.1,
+    "min_split_batches": 1
+  },
+  "training": "CITEpool package defaults"
+}
