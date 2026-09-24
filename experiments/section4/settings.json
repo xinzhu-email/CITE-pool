@@ -1,0 +1,16 @@
+{
+  "experiment": "spatial RNA transfer",
+  "rna": "data/section4/input/rna_refrep_plus_r1clean_query.h5ad",
+  "taxonomy": "data/section4/taxonomy/",
+  "protein_targets": "data/section4/input/protein_refrep_rawclr_r1clean_query_masked.h5ad",
+  "reference_replication": 12,
+  "spatial_query_protein_targets": "masked",
+  "reference_rna_refinement": {"separation_cutoff": 0.55, "dip_cutoff": 0.002},
+  "n_hvg": 5001,
+  "scvi_epochs": 35,
+  "scanvi_epochs": 25,
+  "protein_ratio": 5.0,
+  "protein_marker_weights": {"CD20": 20.0},
+  "historical_method": true,
+  "data_uploaded": false
+}

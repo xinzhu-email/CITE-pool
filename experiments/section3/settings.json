@@ -1,0 +1,12 @@
+{
+  "experiment": "clinical cohort",
+  "rna": "data/section3/rna.h5ad",
+  "taxonomy": "data/section3/taxonomy/",
+  "protein_targets": "data/section3/protein_targets.h5ad",
+  "rna_refinement_cutoff": 0.55,
+  "branches": ["all_protein", "identity_genes"],
+  "protein_ratio": 0.15,
+  "identity_genes_latent_classifier_ratio": "not recorded; supply explicitly if running this branch",
+  "historical_method": true,
+  "data_uploaded": false
+}

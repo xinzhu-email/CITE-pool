@@ -1,0 +1,16 @@
+{
+  "experiment": "joint reference/query RNA representation",
+  "queries": {
+    "healthy": "data/section2/healthy/reference_plus_H00054_query_rna.h5ad",
+    "patient": "data/section2/patient/reference_plus_N00023_query_rna.h5ad",
+    "s2p2": "data/section2/s2p2/reference_plus_s2p2_query_rna.h5ad"
+  },
+  "prepared_input_per_query": ["taxonomy/", "reference_only_protein_targets.h5ad"],
+  "query_protein_targets": "masked",
+  "query_labels_in_training": false,
+  "reference_identity_initial_resolution": 2.0,
+  "protein_ratio": 5.0,
+  "healthy_leaf_weights": {"ALIGNED_0007": 4.0, "ALIGNED_0009": 4.0},
+  "historical_method": true,
+  "data_uploaded": false
+}

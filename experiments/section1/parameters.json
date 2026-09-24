@@ -1,6 +1,10 @@
 {
-  "data": "data/section1/intersection/expr1.h5ad",
-  "initial_resolution": 1.0,
+  "panels": {
+    "intersection": "data/section1/intersection/{expr}.h5ad",
+    "full_panel": "data/section1/full_panel/{expr}.h5ad"
+  },
+  "experiments": ["expr1", "expr2", "expr3"],
+  "initial_resolutions": [0.1, 0.5, 1.0, 1.5],
   "all_proteins": true,
   "rna_refinement": true,
   "rna_refinement_overrides": {
@@ -9,7 +13,9 @@
     "small_fragment_max_cells": 50,
     "two_d_bic_gain_per_cell": 0.1,
     "one_d_bic_gain_per_cell": 0.1,
-    "min_split_batches": 1
+    "min_split_batches": {"expr1": 1, "expr2": 1, "expr3": 3}
   },
-  "training": "CITEpool package defaults"
+  "full_panel_measurement_mask": "protein_measurement_mask",
+  "training": "CITEpool package defaults",
+  "bundled_data": ["data/section1/intersection/expr1.h5ad"]
 }

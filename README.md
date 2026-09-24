@@ -39,6 +39,8 @@ RNA refinement.  Use `--device cpu` when no CUDA device is available, or
 `--resolution 1.5` to change the protein initialization resolution.  The
 published experiment settings are in
 [`experiments/section1/parameters.json`](experiments/section1/parameters.json).
+Settings and training calls for the other final result sections are in
+[`experiments/`](experiments/README.md); only the expr1 test dataset is bundled.
 
 ## Model API
 
